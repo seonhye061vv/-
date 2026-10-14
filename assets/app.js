@@ -386,7 +386,7 @@ setInterval(()=>{if(me&&!ui.busy&&!ui.pwForm&&!me.mustChange&&!(document.activeE
 document.addEventListener("visibilitychange",()=>{if(!document.hidden&&me)refresh()});
 
 (async()=>{
-  try{const r=await fetch("/api/me",{credentials:"same-origin"});if(r.ok){me=(await r.json()).user;await load()}}catch(e){ui.error="서버에 연결할 수 없습니다."}
+  try{const r=await fetch("/api/me",{credentials:"same-origin"});if(r.ok){me=(await r.json()).user;await load()}}catch(e){ui.error=e instanceof TypeError?"서버에 연결할 수 없습니다.":e.message}
   render();
 })();
 })();
