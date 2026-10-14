@@ -114,7 +114,7 @@ function renderLogin(){
       <span class="eyebrow">채용현황판</span>
       <h2>우리 부서 채용, 지금 어느 단계인지 바로 확인하세요</h2>
       <p class="muted">지원서 접수부터 최종 합격 발표까지 9단계를 HR 엑셀과 같은 기준으로 보여 드려요. 열람 권한을 받은 공고만 보입니다.</p>
-      <div class="hero-chart" aria-hidden="true">${bars.map((h,i)=>`<i style="height:${h}%"${i===5?' class="peak"':""}></i>`).join("")}<span class="tip">처우협의 진행 중</span></div>
+      <div class="hero-chart" aria-hidden="true">${bars.map((h,i)=>`<i style="height:${h}%;--i:${i}"${i===5?' class="peak"':""}></i>`).join("")}<span class="tip">처우협의 진행 중</span></div>
       <ul class="feats"><li><b>9</b>단계 진행 현황</li><li><b>1시간</b>마다 자동 반영</li><li><b>공고별</b> 열람 권한</li></ul>
     </section>
     <div class="box login">
@@ -167,7 +167,7 @@ function renderBoard(D=B){
     <div class="kpi"><span class="small muted">${adminView()?"전체 공고":"열람 가능한 공고"}</span><span class="n">${all.length}</span><span class="small muted">건</span></div>
     <div class="sum-side">
       <span class="small muted">현재 단계별 공고 수</span>
-      <div class="stagebar">${STAGES.map((s,i)=>`<div class="sb${counts[i]&&counts[i]===max?" peak":""}" title="${s} ${counts[i]}건"><span class="c ${counts[i]?"":"zero"}">${counts[i]}</span><div class="col"><div class="fill" style="height:${Math.max(counts[i]/max*100,counts[i]?8:0)}%"></div></div><span class="i">${i+1}</span><span class="l">${s}</span></div>`).join("")}</div>
+      <div class="stagebar">${STAGES.map((s,i)=>`<div class="sb${counts[i]&&counts[i]===max?" peak":""}" title="${s} ${counts[i]}건"><span class="c ${counts[i]?"":"zero"}">${counts[i]}</span><div class="col"><div class="fill" style="height:${Math.max(counts[i]/max*100,counts[i]?8:0)}%;--i:${i}"></div></div><span class="i">${i+1}</span><span class="l">${s}</span></div>`).join("")}</div>
       <span class="sum-note">${allDone?`전체 단계 처리 완료 ${allDone}건 · `:""}${chk?`현재 단계 확인 필요 ${chk}건 · `:""}${multi?`<b>${multi}건이 여러 단계를 동시에 진행 중이라 단계별 합계가 공고 수보다 클 수 있습니다.</b>`:"한 공고가 여러 단계를 동시에 진행하면 단계별 합계가 공고 수보다 클 수 있습니다."}</span>
     </div>
   </section>
@@ -349,6 +349,20 @@ function renderLog(){
 }
 
 function render(){
+  draw();
+  // 화면(로그인·탭)이 바뀔 때만 등장 모션을 준다. 자동 새로고침 때는 다시 재생하지 않는다.
+  const key=!me?"login":!isAdmin()&&(me.mustChange||ui.pwForm)?"pw":!B?"loading":(isAdmin()?ui.tab:"board")+(ui.tab==="preview"?":"+(ui.pvAs||""):"");
+  if(key===lastView) return;
+  lastView=key;const v=$("#view");v.classList.remove("enter");void v.offsetWidth;v.classList.add("enter");
+  if(!reduceMotion) v.querySelectorAll(".kpi .n").forEach(countUp);
+}
+let lastView=null;
+const reduceMotion=matchMedia("(prefers-reduced-motion: reduce)").matches;
+function countUp(el){
+  const n=+el.textContent;if(!(n>1))return;const t0=performance.now(),d=700;
+  const step=t=>{const k=Math.min(1,(t-t0)/d);el.textContent=Math.round(n*(1-Math.pow(1-k,3)));if(k<1)requestAnimationFrame(step)};requestAnimationFrame(step);
+}
+function draw(){
   renderWho();renderBanners();renderSideCard();
   const v=$("#view");$("#pageTitle").textContent="채용현황판";$("#pageTitle").hidden=!me;
   if(!me){$("#fresh").innerHTML="";$("#tabs").innerHTML="";v.innerHTML=renderLogin();if($("#dlg").open)$("#dlg").close();return}

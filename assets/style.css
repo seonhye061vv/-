@@ -178,7 +178,6 @@ dialog::backdrop{background:rgba(10,25,20,.45)}
 .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}
 ol.plan{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
 ol.plan li span.s{font-size:12px;margin-left:6px}
-@media (prefers-reduced-motion:reduce){*{transition:none!important}}
 
 /* 로그인 첫 화면 */
 .landing{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(300px,400px);gap:28px;align-items:center;padding:12px 0}
@@ -200,3 +199,39 @@ ol.plan li span.s{font-size:12px;margin-left:6px}
   .kpi{flex-direction:row;align-items:baseline;gap:8px;padding:14px 16px}
   .kpi .n{font-size:36px}
 }
+
+/* motion */
+@keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@keyframes grow{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+@keyframes pop{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+#view.enter>*{animation:rise .45s cubic-bezier(.2,.7,.2,1) both}
+#view.enter>*:nth-child(2){animation-delay:.06s}
+#view.enter>*:nth-child(3){animation-delay:.12s}
+#view.enter>*:nth-child(4){animation-delay:.18s}
+#view.enter>*:nth-child(n+5){animation-delay:.22s}
+#view.enter .sb .fill,#view.enter .hero-chart i{transform-origin:bottom;animation:grow .6s cubic-bezier(.2,.7,.2,1) both;animation-delay:calc(.15s + var(--i,0) * .05s)}
+#view.enter .landing .box.login{animation:pop .5s .1s cubic-bezier(.2,.7,.2,1) both}
+.hero-chart .tip{animation:bob 3.2s ease-in-out infinite}
+#view.enter tbody tr,#view.enter .card{animation:rise .4s cubic-bezier(.2,.7,.2,1) both;animation-delay:.25s}
+#view.enter tbody tr:nth-child(2),#view.enter .card:nth-child(2){animation-delay:.28s}
+#view.enter tbody tr:nth-child(3),#view.enter .card:nth-child(3){animation-delay:.31s}
+#view.enter tbody tr:nth-child(4),#view.enter .card:nth-child(4){animation-delay:.34s}
+#view.enter tbody tr:nth-child(5),#view.enter .card:nth-child(5){animation-delay:.37s}
+#view.enter tbody tr:nth-child(n+6),#view.enter .card:nth-child(n+6){animation-delay:.4s}
+.btn{transition:border-color .15s,background-color .15s,transform .1s,box-shadow .15s}
+.btn:active:not(:disabled){transform:scale(.97)}
+.btn.primary:hover:not(:disabled){box-shadow:0 4px 12px rgba(31,163,154,.3)}
+.side .tabs button{transition:background-color .2s,color .2s,opacity .2s}
+.side .tabs button svg{transition:transform .2s}
+.side .tabs button:hover svg{transform:translateX(2px)}
+.card{transition:transform .18s,box-shadow .18s,border-color .18s}
+.card:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(31,90,110,.12);border-color:var(--accent)}
+tr.row td{transition:background-color .15s}
+.sb .fill,.box,.kpi{transition:transform .2s,box-shadow .2s}
+.kpi:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(31,90,110,.10)}
+dialog[open]{animation:pop .28s cubic-bezier(.2,.7,.2,1)}
+dialog[open]::backdrop{animation:fade .2s ease}
+#banners>*{animation:rise .35s ease both}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after,dialog::backdrop{animation:none!important;transition:none!important}}
