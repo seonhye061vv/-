@@ -1,0 +1,857 @@
+<title>채용현황판</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+/* 레이아웃: 상단 상태 바 + 요약 단계 띠 + 표(PC)/카드(모바일), 관리자는 탭 3개 */
+:root{
+  --bg:#ffffff; --surface:#f3f8f6; --line:#dce6e2; --fg:#14211e; --muted:#5a6b66;
+  --accent:#0d7a6b; --accent-strong:#085c50; --accent-soft:#e1f2ed; --on-accent:#ffffff;
+  --warn:#9a5a06; --warn-soft:#fdf2df; --danger:#b42318; --danger-soft:#fdeceb;
+  --font-body:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --r:8px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1716; --surface:#16211f; --line:#293632; --fg:#e4eeeb; --muted:#94a6a1;
+  --accent:#3cc2a8; --accent-strong:#6fd9c3; --accent-soft:#143a33; --on-accent:#06201b;
+  --warn:#e8ab52; --warn-soft:#3a2a12; --danger:#f2786d; --danger-soft:#3d1b19; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1716; --surface:#16211f; --line:#293632; --fg:#e4eeeb; --muted:#94a6a1;
+  --accent:#3cc2a8; --accent-strong:#6fd9c3; --accent-soft:#143a33; --on-accent:#06201b;
+  --warn:#e8ab52; --warn-soft:#3a2a12; --danger:#f2786d; --danger-soft:#3d1b19; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:14px;line-height:1.55}
+.wrap{max-width:1240px;margin:0 auto;padding-inline:20px;padding-block:0 48px}
+@media (max-width:480px){.wrap{padding-inline:16px}}
+h1,h2,h3{text-wrap:balance;margin:0;line-height:1.3}
+h1{font-size:20px;font-weight:700}
+h2{font-size:17px;font-weight:700}
+h3{font-size:15px;font-weight:600}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mono{font-family:var(--font-mono);font-size:12.5px}
+.muted{color:var(--muted)}
+.small{font-size:12.5px}
+.num{font-variant-numeric:tabular-nums}
+
+/* header */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
+.top .wrap{display:flex;flex-wrap:wrap;align-items:center;gap:10px 20px;padding-block:12px}
+.brand{display:flex;align-items:center;gap:10px}
+.brand-mark{width:26px;height:26px;border-radius:6px;background:var(--accent);display:grid;grid-template-columns:repeat(3,1fr);gap:2px;padding:5px}
+.brand-mark i{background:var(--on-accent);border-radius:1px;opacity:.9}
+.brand-mark i:nth-child(n+5){opacity:.35}
+.nav{display:flex;gap:4px}
+.nav a{padding:6px 12px;border-radius:6px;text-decoration:none;color:var(--muted);font-weight:500}
+.nav a[aria-current="page"]{background:var(--accent-soft);color:var(--accent-strong)}
+.who{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.role{font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.fresh{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding-block:8px;border-bottom:1px solid var(--line);background:var(--surface)}
+.fresh .wrap{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center;padding-block:8px}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent);margin-right:6px;vertical-align:1px}
+.dot.warn{background:var(--warn)}
+
+.btn{border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:6px 12px;font-weight:500}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn.primary:hover{background:var(--accent-strong)}
+.btn.danger{color:var(--danger)}
+.btn.link{border:0;background:none;padding:0;color:var(--accent);text-decoration:underline}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+main{padding-top:22px;display:flex;flex-direction:column;gap:22px}
+.notice{border:1px solid var(--line);border-radius:var(--r);padding:10px 14px;background:var(--surface)}
+.notice.warn{background:var(--warn-soft);border-color:transparent;color:var(--fg)}
+.notice.danger{background:var(--danger-soft);border-color:transparent}
+
+/* summary */
+.summary{display:grid;grid-template-columns:minmax(150px,200px) 1fr;gap:14px;align-items:stretch}
+@media (max-width:760px){.summary{grid-template-columns:1fr}}
+.total{border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:flex;flex-direction:column;justify-content:space-between;gap:6px}
+.total b{font-size:34px;font-weight:700;line-height:1}
+.stages{display:grid;grid-template-columns:repeat(9,minmax(0,1fr));border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.stages div{padding:10px 8px;border-left:1px solid var(--line);display:flex;flex-direction:column;gap:4px;min-width:0}
+.stages div:first-child{border-left:0}
+.stages span{font-size:11.5px;color:var(--muted);word-break:keep-all}
+.stages b{font-size:22px;line-height:1}
+.stages .on{background:var(--accent-soft)}
+.stages .on b{color:var(--accent-strong)}
+.stages .zero b{color:var(--muted);font-weight:500}
+@media (max-width:760px){.stages{grid-template-columns:repeat(3,1fr)}.stages div:nth-child(3n+1){border-left:0}.stages div:nth-child(n+4){border-top:1px solid var(--line)}}
+
+.tools{display:flex;flex-wrap:wrap;gap:10px;align-items:end}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field label{font-size:12px;color:var(--muted);font-weight:500}
+.field input,.field select{border:1px solid var(--line);border-radius:6px;padding:7px 10px;background:var(--bg);min-width:0}
+.field.grow{flex:1 1 220px}
+
+/* table */
+.tablebox{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r)}
+table{border-collapse:collapse;width:100%}
+th,td{padding:9px 10px;text-align:left;border-bottom:1px solid var(--line);vertical-align:middle}
+thead th{background:var(--surface);font-size:12px;font-weight:600;color:var(--muted);white-space:nowrap}
+thead .grp th{border-bottom:0;padding-bottom:2px}
+tbody tr:last-child td{border-bottom:0}
+.jobs tbody tr{cursor:pointer}
+.jobs tbody tr:hover{background:var(--surface)}
+.jobs td.st{text-align:center;font-size:12.5px;white-space:nowrap;border-left:1px solid var(--line)}
+.jobs th.st{text-align:center;border-left:1px solid var(--line);font-size:11.5px;white-space:normal;word-break:keep-all;min-width:64px}
+.jobs .ttl{font-weight:600;min-width:220px}
+.s-done{color:var(--accent-strong)}
+.s-na{color:var(--muted);font-size:11.5px}
+.pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12.5px;font-weight:600;white-space:nowrap}
+.pill.active{background:var(--accent);color:var(--on-accent)}
+.pill.all{background:var(--accent-soft);color:var(--accent-strong)}
+.pill.check{background:var(--warn-soft);color:var(--warn)}
+.tag{display:inline-block;padding:1px 7px;border-radius:4px;font-size:11.5px;font-weight:600;margin-left:6px;vertical-align:1px}
+.tag.warn{background:var(--warn-soft);color:var(--warn)}
+.tag.new{background:var(--accent-soft);color:var(--accent-strong)}
+.tag.danger{background:var(--danger-soft);color:var(--danger)}
+.foot{font-size:12.5px;color:var(--muted);margin-top:8px}
+
+.cards{display:none;flex-direction:column;gap:10px}
+.card{border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;display:flex;flex-direction:column;gap:8px;background:var(--bg);text-align:left;width:100%}
+.card .org{font-size:12px;color:var(--muted)}
+.card .ttl{font-weight:600}
+.bar{display:grid;grid-template-columns:repeat(9,1fr);gap:3px}
+.bar i{height:6px;border-radius:2px;background:var(--line)}
+.bar i.done{background:var(--accent);opacity:.45}
+.bar i.active{background:var(--accent)}
+.bar i.na{background:repeating-linear-gradient(45deg,var(--line) 0 2px,transparent 2px 4px)}
+@media (max-width:720px){.tablebox.jobs-box{display:none}.cards{display:flex}}
+
+.empty{border:1px dashed var(--line);border-radius:var(--r);padding:36px 16px;text-align:center;color:var(--muted)}
+
+/* detail */
+.detail-head{display:flex;flex-direction:column;gap:8px}
+.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.kv div{background:var(--bg);padding:10px 14px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.kv span{font-size:12px;color:var(--muted)}
+.steps td:first-child{width:56px;color:var(--muted)}
+.steps tr.cur td{background:var(--accent-soft);font-weight:600}
+.cols{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:22px;align-items:start}
+@media (max-width:860px){.cols{grid-template-columns:1fr}}
+.log{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.log li{border-left:2px solid var(--line);padding-left:12px}
+
+/* admin */
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);overflow-x:auto}
+.tabs button{border:0;background:none;padding:9px 14px;color:var(--muted);font-weight:500;border-bottom:2px solid transparent;white-space:nowrap}
+.tabs button[aria-selected="true"]{color:var(--accent-strong);border-bottom-color:var(--accent)}
+.panel{display:flex;flex-direction:column;gap:18px}
+.box{border:1px solid var(--line);border-radius:var(--r);padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.stats div{display:flex;flex-direction:column;gap:2px}
+.stats span{font-size:12px;color:var(--muted)}
+.drop{border:1.5px dashed var(--line);border-radius:var(--r);padding:18px;text-align:center;display:flex;flex-direction:column;gap:8px;align-items:center}
+.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.code{display:inline-grid;place-items:center;min-width:26px;height:24px;padding:0 6px;border-radius:5px;background:var(--surface);border:1px solid var(--line);font-family:var(--font-mono);font-size:13px;font-weight:500}
+.cand{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;padding:6px 0;border-top:1px solid var(--line)}
+.cand:first-child{border-top:0}
+.job-perm{border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:9px 16px;border-radius:6px;font-weight:500;z-index:20;max-width:calc(100% - 32px)}
+details summary{cursor:pointer;color:var(--accent-strong)}
+.login{max-width:520px;margin:40px auto 0;display:flex;flex-direction:column;gap:16px}
+.acct{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg);width:100%;text-align:left}
+.acct:hover{border-color:var(--accent)}
+.demo-note{font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:14px;margin-top:8px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div id="app"></div>
+<div id="toast" class="toast" hidden></div>
+
+<script>
+(() => {
+"use strict";
+
+/* ───────── 기본 정의 ───────── */
+const STAGES = ["지원서접수","서류전형","인적성전형","실무면접","임원면접","처우협의","평판조회","내부품의진행","최종합격발표"];
+const LABEL = { done: "완료", active: "진행 중", na: "해당사항 없음", "": "" };
+const BLANK_NOTE = "※ 공란은 아직 해당 단계에 도달하지 않은 상태를 의미합니다.";
+// 사용자 확인으로 확정된 소속 정정. 이 두 부서에만 적용합니다.
+const ORG_FIX = { "계약관리부": "손님지원본부", "재무기획부": "경영기획본부" };
+
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+const nowD = () => new Date();
+const fmt = d => d ? new Intl.DateTimeFormat("ko-KR", { year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit", second:"2-digit", hour12:false }).format(new Date(d)) : "—";
+const norm = s => String(s ?? "").replace(/\s+/g, "");
+const keyOf = (hq, dept, title) => [hq, dept, title].map(x => String(x).trim()).join("|");
+
+/* ───────── 데이터 저장소 (데모: 브라우저 메모리) ───────── */
+const D = "done", A = "active", N = "na", B = "";
+const SEED_ROWS = [
+  ["손님지원본부","계약관리부","계약관리부 계약보전 경력사원 채용",[D,A,B,B,B,B,B,B,B]],
+  ["경영기획본부","재무기획부","재무기획부 세무담당 경력사원 채용",[D,A,B,B,B,B,B,B,B]],
+  ["CEO 임원","감사부","감사부 내부감사인 경력사원 채용",[D,D,N,D,D,A,B,B,B]],
+  ["계리리스크본부","리스크관리부","리스크관리부 경력사원 채용",[D,D,D,D,D,D,N,A,B]],
+  ["영업본부","하이브리드사업부","하이브리드사업부 총무 경력사원 채용",[D,D,D,D,D,A,B,B,B]],
+  ["영업본부","하이브리드사업부","하이브리드사업부 지점장 경력사원 채용",[D,D,D,D,D,A,B,B,B]],
+  ["손님지원본부","계약관리부","계약관리부 콜센터 경력사원 채용",[A,B,B,B,B,B,B,B,B]],
+  ["경영기획본부","재무기획부","재무기획부 재무관리 경력사원 채용",[A,B,B,B,B,B,B,B,B]],
+  ["CEO 임원","소비자보호부","소비자보호부 민원담당 경력사원 채용",[A,B,B,B,B,B,B,B,B]],
+];
+// 권한부여대상자 시트 중 PRD에 언급된 행만 예시로 넣었습니다. 본부명은 원본 기재 그대로입니다.
+const SEED_PERM = [
+  { hq:"계리리스크본부", dept:"계약관리부", codes:["Y","D"], cell:"2행" },
+  { hq:"영업지원본부", dept:"재무기획부", codes:["I","D"], cell:"3행" },
+  { hq:"CEO 임원", dept:"감사부", codes:["H","D"], cell:"4행" },
+  { hq:"영업본부", dept:"하이브리드사업부", codes:["S","D"], cell:"5행" },
+  { hq:"CEO 임원", dept:"소비자보호관리책임자", codes:["W","D"], cell:"6행" },
+];
+
+const DB = {
+  jobs: [], history: {}, seq: 0,
+  accounts: [
+    { id:"hr.admin", name:"HR 관리자", role:"admin" },
+    { id:"demo.a", name:"현업 A", role:"viewer" },
+    { id:"demo.b", name:"현업 B", role:"viewer" },
+    { id:"demo.c", name:"현업 C", role:"viewer" },
+    { id:"demo.d", name:"현업 D", role:"viewer" },
+  ],
+  permRows: [], pendingPerm: null,
+  codeLinks: {},            // 대상자 코드 → 계정 ID
+  grants: [],               // { userId, jobId, at, by }
+  audit: [],                // 권한 변경 이력
+  syncs: [],                // 동기화 기록
+  lastOk: null, lastAttempt: null, lastDataChange: null,
+  cycleHours: 1,
+  lastFile: null,           // { name, modified, hash, buf }
+  source: "예시 데이터",
+};
+
+function newId(){ DB.seq += 1; return "J" + String(DB.seq).padStart(3, "0"); }
+
+/* ───────── "서버" 역할: 모든 조회는 여기서 권한 검사 ───────── */
+class ApiError extends Error { constructor(code, msg){ super(msg); this.code = code; } }
+let session = { userId: "hr.admin" };
+
+function me(){
+  if (!session) throw new ApiError(401, "로그인이 필요합니다.");
+  const u = DB.accounts.find(a => a.id === session.userId);
+  if (!u) throw new ApiError(401, "로그인이 필요합니다.");
+  return u;
+}
+function requireAdmin(){ const u = me(); if (u.role !== "admin") throw new ApiError(403, "관리자만 사용할 수 있는 기능입니다."); return u; }
+function canView(u, jobId){ return u.role === "admin" || DB.grants.some(g => g.userId === u.id && g.jobId === jobId); }
+function publicJob(j, u){
+  const out = { id:j.id, hq:j.hq, dept:j.dept, title:j.title, statuses:[...j.statuses], updatedAt:j.updatedAt };
+  if (u.role === "admin") { out.missing = j.missing; out.isNew = j.isNew; }
+  return out;
+}
+const api = {
+  listJobs(){ const u = me(); return DB.jobs.filter(j => canView(u, j.id)).map(j => publicJob(j, u)); },
+  getJob(id){
+    const u = me();
+    const j = DB.jobs.find(x => x.id === id);
+    // 없는 공고와 권한 없는 공고를 같은 응답으로 돌려 존재 여부도 알 수 없게 합니다.
+    if (!j || !canView(u, id)) throw new ApiError(404, "열람 권한이 없거나 존재하지 않는 공고입니다.");
+    return { ...publicJob(j, u), history: (DB.history[id] || []).map(h => ({ at:h.at, changes:[...h.changes] })) };
+  },
+  meta(){ me(); return { lastOk:DB.lastOk, lastAttempt:DB.lastAttempt, lastDataChange:DB.lastDataChange, cycleHours:DB.cycleHours }; },
+};
+
+/* ───────── 단계 계산 ───────── */
+function currentStage(st){
+  const act = st.map((s, i) => s === "active" ? STAGES[i] : null).filter(Boolean);
+  if (act.length) return { kind:"active", names:act };
+  if (st.every(s => s === "done" || s === "na")) return { kind:"all", names:["전체 단계 처리 완료"] };
+  return { kind:"check", names:["현재 단계 확인 필요"] };
+}
+const stagePills = st => currentStage(st).names.map(n => `<span class="pill ${currentStage(st).kind}">${esc(n)}</span>`).join(" ");
+const isStale = () => !DB.lastOk || (Date.now() - new Date(DB.lastOk).getTime()) > DB.cycleHours * 2 * 3600e3;
+
+/* ───────── 엑셀 읽기·검증 ───────── */
+function fillMerges(ws){
+  (ws["!merges"] || []).forEach(m => {
+    const top = ws[XLSX.utils.encode_cell(m.s)];
+    if (!top) return;
+    for (let r = m.s.r; r <= m.e.r; r++) for (let c = m.s.c; c <= m.e.c; c++) {
+      const a = XLSX.utils.encode_cell({ r, c });
+      if (!ws[a]) ws[a] = { t: top.t, v: top.v };
+    }
+  });
+}
+function readWorkbook(buf){
+  const errors = [], warnings = [];
+  const err = (sheet, cell, value, msg, fix) => errors.push({ sheet, cell, value, msg, fix });
+  let wb;
+  try { wb = XLSX.read(buf, { type:"array" }); }
+  catch(e){ err("-", "-", "", "엑셀 파일을 열 수 없습니다.", "파일이 저장 중이거나 손상되지 않았는지 확인하고, .xlsx로 다시 저장해 주세요."); return { errors, warnings }; }
+  for (const n of ["채용현황","프로세스","권한부여대상자"]) if (!wb.Sheets[n]) err(n, "-", "", `'${n}' 시트가 없습니다.`, "시트 이름을 기존 양식과 똑같이 맞춰 주세요.");
+  if (errors.length) return { errors, warnings };
+  const S = wb.Sheets["채용현황"], P = wb.Sheets["프로세스"], R = wb.Sheets["권한부여대상자"];
+  [S, P, R].forEach(fillMerges);
+  const at = (r, c) => XLSX.utils.encode_cell({ r, c });
+  const v = (ws, r, c) => { const x = ws[at(r, c)]; return x == null || x.v == null ? "" : String(x.v).trim(); };
+
+  // 프로세스 2행 B~J: 단계 정의 (3행은 업무상 의미 미확정이라 읽지 않습니다)
+  const procNames = []; for (let c = 1; c <= 9; c++) procNames.push(norm(v(P, 1, c)));
+  STAGES.forEach((s, i) => {
+    if (procNames[i] === norm(s)) return;
+    if (procNames.includes(norm(s))) warnings.push({ sheet:"프로세스", cell:at(1, i + 1), msg:`단계 순서가 예상과 다릅니다. '${s}'은(는) ${i + 1}번째여야 합니다.` });
+    else err("프로세스", at(1, i + 1), v(P, 1, i + 1), `단계 '${s}'을(를) 프로세스 2행에서 찾을 수 없습니다.`, "프로세스 시트 2행의 단계 이름을 기존 양식과 같게 맞춰 주세요.");
+  });
+
+  // 채용현황 2행: 단계 이름으로 열을 찾습니다 (열 위치만으로 읽지 않음)
+  const rng = XLSX.utils.decode_range(S["!ref"] || "A1:A1");
+  const colOf = {};
+  for (let c = 3; c <= rng.e.c; c++) { const n = norm(v(S, 1, c)); if (n && colOf[n] == null) colOf[n] = c; }
+  const cols = STAGES.map(s => {
+    const c = colOf[norm(s)];
+    if (c == null) err("채용현황", "2행", "", `'${s}' 단계 머리글이 없습니다.`, "채용현황 시트 2행 D~L열의 단계 이름을 확인해 주세요.");
+    return c;
+  });
+  if (errors.length) return { errors, warnings };
+
+  const rows = [], seen = new Map();
+  for (let r = 2; r <= rng.e.r; r++) {
+    const hq = v(S, r, 0), dept = v(S, r, 1), title = v(S, r, 2);
+    const raws = cols.map(c => v(S, r, c));
+    if (!hq && !dept && !title && raws.every(x => !x)) continue;
+    const line = r + 1;
+    if (!hq) err("채용현황", at(r, 0), "", `${line}행에 본부가 비어 있습니다.`, "A열에 본부명을 입력해 주세요.");
+    if (!dept) err("채용현황", at(r, 1), "", `${line}행에 부서가 비어 있습니다.`, "B열에 부서명을 입력해 주세요.");
+    if (!title) err("채용현황", at(r, 2), "", `${line}행에 채용공고명이 비어 있습니다.`, "C열에 공고명을 입력해 주세요.");
+    const st = raws.map((raw, i) => {
+      const k = norm(raw);
+      if (!k) return "";
+      if (k === "완료") return "done";
+      if (k === "진행중") return "active";
+      if (k === "해당사항없음") return "na";
+      err("채용현황", at(r, cols[i]), raw, `${line}행 '${STAGES[i]}'에 사용할 수 없는 값이 있습니다.`, "완료 / 진행 중 / 해당사항 없음 중 하나로 고치거나, 아직 도달하지 않았다면 비워 두세요.");
+      return "";
+    });
+    let blankSeen = false;
+    st.forEach((s, i) => {
+      if (!s) blankSeen = true;
+      else if (blankSeen) warnings.push({ sheet:"채용현황", cell:at(r, cols[i]), msg:`${line}행: 앞 단계가 공란인데 '${STAGES[i]}'에 값이 있습니다. 순서를 확인해 주세요. (자동 수정하지 않음)` });
+    });
+    if (hq && dept && title) {
+      const k = keyOf(hq, dept, title);
+      if (seen.has(k)) err("채용현황", `${seen.get(k)}행, ${line}행`, title, "같은 본부·부서·공고명이 두 번 나옵니다.", "중복된 행 하나를 지우거나 공고명을 구분해 주세요.");
+      else seen.set(k, line);
+      rows.push({ hq, dept, title, statuses: st });
+    }
+  }
+  if (!rows.length && !errors.length) err("채용현황", "3행~", "", "공고 행이 하나도 없습니다.", "3행부터 공고를 입력해 주세요.");
+
+  // 권한부여대상자: A=본부, B=부서, C~F 대상자 코드 (비어 있지 않은 셀 전부)
+  const pr = XLSX.utils.decode_range(R["!ref"] || "A1:A1"), perm = [];
+  for (let r = 1; r <= pr.e.r; r++) {
+    const hq = v(R, r, 0), dept = v(R, r, 1), codes = [];
+    for (let c = 2; c <= 5; c++) { const x = v(R, r, c); if (x) codes.push(x); }
+    if (!dept && !codes.length) continue;
+    perm.push({ hq, dept, codes, cell:`${r + 1}행` });
+  }
+  return { errors, warnings, rows, perm };
+}
+
+async function sha(buf){
+  try { const h = await crypto.subtle.digest("SHA-256", buf); return [...new Uint8Array(h)].map(b => b.toString(16).padStart(2, "0")).join(""); }
+  catch { let x = 0; const u = new Uint8Array(buf); for (let i = 0; i < u.length; i++) x = (x * 31 + u[i]) >>> 0; return "f" + x + "-" + u.length; }
+}
+
+/* ───────── 반영 (검증 통과 시 한 번에) ───────── */
+let busy = false;
+function logSync(rec){ DB.syncs.unshift(rec); }
+
+function applyRows(rows, perm, by){
+  const t = nowD().toISOString();
+  const byKey = new Map(DB.jobs.map(j => [j.key, j]));
+  const inFile = new Set();
+  let changed = 0, added = 0;
+  const nextJobs = DB.jobs.map(j => ({ ...j, statuses:[...j.statuses] }));
+  const nextById = new Map(nextJobs.map(j => [j.id, j]));
+  const histAdd = [];
+  for (const r of rows) {
+    const k = keyOf(r.hq, r.dept, r.title);
+    inFile.add(k);
+    const old = byKey.get(k);
+    if (old) {
+      const j = nextById.get(old.id);
+      const diffs = [];
+      r.statuses.forEach((s, i) => { if (s !== j.statuses[i]) diffs.push(`${STAGES[i]}: ${LABEL[j.statuses[i]] || "공란"} → ${LABEL[s] || "공란"}`); });
+      if (diffs.length) { j.statuses = [...r.statuses]; j.updatedAt = t; changed++; histAdd.push([j.id, { at:t, changes:diffs }]); }
+      j.missing = false;
+    } else {
+      const id = newId();
+      nextJobs.push({ id, key:k, hq:r.hq, dept:r.dept, title:r.title, statuses:[...r.statuses], updatedAt:t, missing:false, isNew:!!by });
+      histAdd.push([id, { at:t, changes:["공고 최초 반영"] }]);
+      added++;
+    }
+  }
+  const missing = [];
+  nextJobs.forEach(j => { if (!inFile.has(j.key)) { if (!j.missing) missing.push(j.title); j.missing = true; } });
+  // 여기까지 오류 없이 왔을 때만 교체
+  DB.jobs = nextJobs;
+  histAdd.forEach(([id, h]) => (DB.history[id] ||= []).unshift(h));
+  if (perm) {
+    if (!DB.permRows.length) DB.permRows = perm;
+    else if (JSON.stringify(perm) !== JSON.stringify(DB.permRows)) DB.pendingPerm = { rows: perm, at: t };
+  }
+  DB.lastOk = t;
+  if (changed || added) DB.lastDataChange = t;
+  return { changed, added, missing, total: rows.length };
+}
+
+async function runImport({ buf, name, modified, source }){
+  if (busy) { toast("다른 반영 작업이 진행 중입니다. 끝난 뒤 다시 시도해 주세요."); return null; }
+  busy = true;
+  const rec = { start: nowD().toISOString(), end: null, source, file: name, result: "", count: 0, errors: [], warnings: [] };
+  DB.lastAttempt = rec.start;
+  try {
+    if (DB.lastFile && modified && DB.lastFile.modified && modified < DB.lastFile.modified && DB.lastFile.hash) {
+      rec.result = "실패";
+      rec.errors.push({ sheet:"-", cell:"-", value:"", msg:`이미 반영한 파일(${fmt(DB.lastFile.modified)} 수정)보다 오래된 파일입니다.`, fix:"가장 최근에 저장한 파일을 올려 주세요." });
+      return rec;
+    }
+    const hash = await sha(buf);
+    const parsed = readWorkbook(buf);
+    rec.warnings = parsed.warnings;
+    if (parsed.errors.length) { rec.result = "실패"; rec.errors = parsed.errors; return rec; }
+    if (DB.lastFile && DB.lastFile.hash === hash) {
+      DB.lastOk = nowD().toISOString();
+      rec.result = "변경 없음"; rec.count = parsed.rows.length; return rec;
+    }
+    const res = applyRows(parsed.rows, parsed.perm, true);
+    DB.lastFile = { name, modified, hash, buf };
+    DB.source = name;
+    rec.result = "성공"; rec.count = res.total;
+    if (res.missing.length) rec.warnings.push(...res.missing.map(t => ({ sheet:"채용현황", cell:"-", msg:`'${t}' 공고가 파일에서 빠졌습니다. 자동 삭제하지 않고 유지합니다.` })));
+    rec.summary = res;
+    return rec;
+  } finally {
+    rec.end = nowD().toISOString();
+    if (!rec.result) rec.result = "실패";
+    logSync(rec);
+    busy = false;
+  }
+}
+
+/* ───────── 권한 후보 계산 ───────── */
+const fixedHq = row => ORG_FIX[row.dept] || row.hq;
+function candidatesFor(job){
+  const rows = DB.permRows.filter(p => fixedHq(p) === job.hq && p.dept === job.dept);
+  const codes = [...new Set(rows.flatMap(r => r.codes))];
+  return { matched: rows.length > 0, rows, codes };
+}
+function audit(action, jobId, userId, detail){
+  const by = me();
+  DB.audit.unshift({ at: nowD().toISOString(), actor: by.name, action, jobId, userId, detail });
+}
+function grant(userId, jobId, via){
+  requireAdmin();
+  if (DB.grants.some(g => g.userId === userId && g.jobId === jobId)) return;
+  DB.grants.push({ userId, jobId, at: nowD().toISOString() });
+  audit("부여", jobId, userId, via);
+}
+function revoke(userId, jobId){
+  requireAdmin();
+  DB.grants = DB.grants.filter(g => !(g.userId === userId && g.jobId === jobId));
+  audit("회수", jobId, userId, "관리자 회수");
+}
+const acctName = id => (DB.accounts.find(a => a.id === id) || {}).name || id;
+const jobTitle = id => (DB.jobs.find(j => j.id === id) || {}).title || id;
+
+/* ───────── 초기 예시 데이터 반영 ───────── */
+(function seed(){
+  const rec = { start: nowD().toISOString(), source:"예시 데이터", file:"PRD 기재 내용", result:"", count:0, errors:[], warnings:[] };
+  DB.lastAttempt = rec.start;
+  applyRows(SEED_ROWS.map(([hq, dept, title, statuses]) => ({ hq, dept, title, statuses })), SEED_PERM, false);
+  rec.result = "성공"; rec.count = SEED_ROWS.length; rec.end = nowD().toISOString();
+  logSync(rec);
+})();
+
+/* ───────── 화면 ───────── */
+const app = document.getElementById("app");
+const ui = { q:"", org:"", stage:"", adminTab:"data", preview:null };
+
+function toast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.hidden = false;
+  clearTimeout(toast.h); toast.h = setTimeout(() => t.hidden = true, 2600);
+}
+function route(){
+  const h = location.hash.replace(/^#/, "");
+  if (h.startsWith("job-")) return { name:"job", id:h.slice(4) };
+  if (h === "admin") return { name:"admin" };
+  return { name:"board" };
+}
+
+function header(u, r){
+  const m = api.meta(), stale = isStale();
+  return `
+  <header class="top"><div class="wrap">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">${"<i></i>".repeat(9)}</span><h1>채용현황판</h1></div>
+    <nav class="nav">
+      <a href="#" ${r.name !== "admin" ? 'aria-current="page"' : ""}>현황판</a>
+      ${u.role === "admin" ? `<a href="#admin" ${r.name === "admin" ? 'aria-current="page"' : ""}>관리</a>` : ""}
+    </nav>
+    <div class="who"><span>${esc(u.name)}</span><span class="role">${u.role === "admin" ? "HR 관리자" : "현업 열람자"}</span>
+      <button class="btn" data-act="logout">계정 전환</button></div>
+  </div></header>
+  <div class="fresh"><div class="wrap small">
+    <span><span class="dot ${stale ? "warn" : ""}"></span><b>마지막 정상 반영</b> <span class="num">${fmt(m.lastOk)}</span></span>
+    <span>${stale ? `<span class="tag warn" style="margin:0">최신성 경고</span> 설정 주기(${m.cycleHours}시간)의 두 배 동안 정상 반영이 없었습니다.` : `데이터 최신 상태 · 갱신 주기 ${m.cycleHours}시간`}</span>
+    ${u.role === "admin" ? `<span class="muted">데이터 변경 <span class="num">${fmt(m.lastDataChange)}</span> · 동기화 시도 <span class="num">${fmt(m.lastAttempt)}</span></span>` : ""}
+  </div></div>`;
+}
+
+function statusCell(s, i, st){
+  if (s === "active") return `<span class="pill active">진행 중</span>`;
+  if (s === "done") return `<span class="s-done">완료</span>`;
+  if (s === "na") return `<span class="s-na">해당사항 없음</span>`;
+  return "";
+}
+
+function filtered(jobs){
+  const q = ui.q.trim();
+  return jobs.filter(j =>
+    (!q || j.title.includes(q)) &&
+    (!ui.org || `${j.hq}|${j.dept}` === ui.org || j.hq === ui.org) &&
+    (!ui.stage || currentStage(j.statuses).names.includes(ui.stage)));
+}
+
+function boardView(u){
+  const jobs = api.listJobs();
+  if (!jobs.length) return `<div class="empty"><h2>열람 가능한 공고가 없습니다</h2><p>열람 권한이 필요하면 HR 채용담당자에게 요청해 주세요.</p></div>`;
+  const counts = STAGES.map(s => jobs.filter(j => j.statuses[STAGES.indexOf(s)] === "active").length);
+  const allDone = jobs.filter(j => currentStage(j.statuses).kind === "all").length;
+  const check = jobs.filter(j => currentStage(j.statuses).kind === "check").length;
+  const multi = jobs.filter(j => j.statuses.filter(s => s === "active").length > 1).length;
+  const hqs = [...new Set(jobs.map(j => j.hq))];
+  const stageOpts = [...new Set(jobs.flatMap(j => currentStage(j.statuses).names))];
+  stageOpts.sort((a, b) => (STAGES.indexOf(a) + 100) % 100 - (STAGES.indexOf(b) + 100) % 100);
+  return `
+  <section class="summary" aria-label="요약">
+    <div class="total"><span class="muted small">${u.role === "admin" ? "전체 공고" : "열람 가능한 공고"}</span><b class="num">${jobs.length}</b>
+      <span class="small muted">${allDone ? `전체 단계 처리 완료 ${allDone}건 · ` : ""}${check ? `확인 필요 ${check}건` : ""}</span></div>
+    <div>
+      <div class="stages">${STAGES.map((s, i) => `<div class="${counts[i] ? "on" : "zero"}"><span>${i + 1}. ${s}</span><b class="num">${counts[i]}</b></div>`).join("")}</div>
+      <p class="foot">현재 진행 중인 단계별 공고 수입니다. ${multi ? `<b>여러 단계가 동시에 진행 중인 공고 ${multi}건이 있어</b> 합계가 공고 수보다 클 수 있습니다.` : "한 공고에 여러 단계가 동시에 진행 중이면 각 단계에 모두 집계되어 합계가 공고 수보다 클 수 있습니다."}</p>
+    </div>
+  </section>
+  <section class="tools" aria-label="검색과 필터">
+    <div class="field grow"><label for="f-q">공고명 검색</label><input id="f-q" type="search" placeholder="예: 경력사원" value="${esc(ui.q)}"></div>
+    <div class="field"><label for="f-org">본부·부서</label><select id="f-org"><option value="">전체</option>
+      ${hqs.map(h => `<optgroup label="${esc(h)}"><option value="${esc(h)}" ${ui.org === h ? "selected" : ""}>${esc(h)} 전체</option>${[...new Set(jobs.filter(j => j.hq === h).map(j => j.dept))].map(d => `<option value="${esc(h + "|" + d)}" ${ui.org === h + "|" + d ? "selected" : ""}>${esc(d)}</option>`).join("")}</optgroup>`).join("")}
+    </select></div>
+    <div class="field"><label for="f-stage">현재 단계</label><select id="f-stage"><option value="">전체</option>${stageOpts.map(s => `<option ${ui.stage === s ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></div>
+  </section>
+  <section id="list" aria-label="공고 목록">${listView(jobs, u)}</section>`;
+}
+
+function listView(jobs, u){
+  const rows = filtered(jobs);
+  if (!rows.length) return `<div class="empty">조건에 맞는 공고가 없습니다.</div>`;
+  const flags = j => (j.missing ? `<span class="tag warn">원본에서 빠짐</span>` : "") + (j.isNew ? `<span class="tag new">신규 · 관리자만 열람</span>` : "");
+  return `
+  <div class="tablebox jobs-box"><table class="jobs">
+    <thead><tr><th>본부</th><th>부서</th><th>공고명</th><th>현재 단계</th>${STAGES.map((s, i) => `<th class="st">${s}</th>`).join("")}</tr></thead>
+    <tbody>${rows.map(j => `<tr data-job="${esc(j.id)}" tabindex="0">
+      <td>${esc(j.hq)}</td><td>${esc(j.dept)}</td><td class="ttl">${esc(j.title)}${flags(j)}</td><td>${stagePills(j.statuses)}</td>
+      ${j.statuses.map((s, i) => `<td class="st">${statusCell(s, i, j.statuses)}</td>`).join("")}</tr>`).join("")}
+    </tbody></table></div>
+  <div class="cards">${rows.map(j => `<button class="card" data-job="${esc(j.id)}">
+      <span class="org">${esc(j.hq)} · ${esc(j.dept)}</span><span class="ttl">${esc(j.title)}${flags(j)}</span>
+      <span>${stagePills(j.statuses)}</span>
+      <span class="bar" aria-hidden="true">${j.statuses.map(s => `<i class="${s}"></i>`).join("")}</span>
+    </button>`).join("")}</div>
+  <p class="foot">${BLANK_NOTE} 공고를 누르면 상세 진행현황을 볼 수 있습니다. ${rows.length !== jobs.length ? `· ${jobs.length}건 중 ${rows.length}건 표시` : ""}</p>
+  <form class="row small muted" id="direct" style="margin-top:6px"><label for="f-id">공고 주소 직접 열기</label>
+    <input id="f-id" class="mono" placeholder="J002" size="6" style="border:1px solid var(--line);border-radius:6px;padding:4px 8px;background:var(--bg)"><button class="btn">열기</button></form>`;
+}
+
+function jobView(id){
+  let j;
+  try { j = api.getJob(id); }
+  catch(e){ return `<a href="#" class="small">← 현황판으로</a><div class="empty"><h2>공고를 볼 수 없습니다</h2><p>${esc(e.message)}</p></div>`; }
+  const cur = currentStage(j.statuses);
+  return `
+  <a href="#" class="small">← 현황판으로</a>
+  <section class="detail-head">
+    <span class="muted small">${esc(j.hq)} · ${esc(j.dept)}</span>
+    <h2 style="font-size:21px">${esc(j.title)}${j.missing ? `<span class="tag warn">원본에서 빠짐</span>` : ""}</h2>
+    <div class="row"><span class="muted small">현재 단계</span> ${stagePills(j.statuses)}</div>
+  </section>
+  <div class="kv">
+    <div><span>본부</span>${esc(j.hq)}</div><div><span>부서</span>${esc(j.dept)}</div>
+    <div><span>채용 상태</span>${cur.kind === "all" ? "전체 단계 처리 완료" : cur.kind === "active" ? "진행 중" : "현재 단계 확인 필요"}</div>
+    <div><span>마지막 상태 변경</span><span class="num">${fmt(j.updatedAt)}</span></div>
+  </div>
+  <div class="cols">
+    <section><h3 style="margin-bottom:10px">단계별 진행상황</h3>
+      <div class="tablebox"><table class="steps"><thead><tr><th>순서</th><th>단계</th><th>상태</th></tr></thead><tbody>
+      ${j.statuses.map((s, i) => `<tr class="${s === "active" ? "cur" : ""}"><td class="num">${i + 1}</td><td>${STAGES[i]}</td><td>${statusCell(s, i)}</td></tr>`).join("")}
+      </tbody></table></div>
+      <p class="foot">${BLANK_NOTE}<br>최종합격발표 ‘완료’는 입사 완료를 뜻하지 않습니다.</p>
+    </section>
+    <section><h3 style="margin-bottom:10px">상태 변경 이력</h3>
+      ${j.history.length ? `<ul class="log">${j.history.map(h => `<li><div class="small muted num">${fmt(h.at)}</div>${h.changes.map(c => `<div>${esc(c)}</div>`).join("")}</li>`).join("")}</ul>` : `<p class="muted">기록된 변경이 없습니다.</p>`}
+    </section>
+  </div>`;
+}
+
+/* ───────── 관리 화면 ───────── */
+function adminView(){
+  requireAdmin();
+  const tabs = [["data","데이터 반영"],["perm","열람 권한"],["log","동기화 기록"]];
+  return `
+  <div class="row" style="justify-content:space-between"><h2>관리</h2></div>
+  <div class="tabs" role="tablist">${tabs.map(([k, l]) => `<button role="tab" data-tab="${k}" aria-selected="${ui.adminTab === k}">${l}${k === "perm" && pendingCount() ? ` <span class="tag warn">${pendingCount()}</span>` : ""}</button>`).join("")}</div>
+  <div class="panel">${ui.adminTab === "data" ? dataPanel() : ui.adminTab === "perm" ? permPanel() : logPanel()}</div>`;
+}
+const pendingCount = () => DB.jobs.filter(j => !candidatesFor(j).matched).length + (DB.pendingPerm ? 1 : 0);
+
+function issueTable(list, withFix){
+  if (!list.length) return "";
+  return `<div class="tablebox"><table><thead><tr><th>시트</th><th>위치</th>${withFix ? "<th>원본 값</th>" : ""}<th>내용</th>${withFix ? "<th>고치는 방법</th>" : ""}</tr></thead><tbody>
+    ${list.map(e => `<tr><td>${esc(e.sheet)}</td><td class="mono">${esc(e.cell)}</td>${withFix ? `<td>${esc(e.value) || '<span class="muted">(빈 칸)</span>'}</td>` : ""}<td>${esc(e.msg)}</td>${withFix ? `<td>${esc(e.fix || "")}</td>` : ""}</tr>`).join("")}
+  </tbody></table></div>`;
+}
+
+function dataPanel(){
+  const p = ui.preview;
+  const missing = DB.jobs.filter(j => j.missing), fresh = DB.jobs.filter(j => j.isNew);
+  return `
+  <div class="notice small"><b>지금 반영된 데이터:</b> ${esc(DB.source)}. ${DB.source === "예시 데이터" ? "PRD에 적힌 공고 9건과 현재 단계를 바탕으로 만든 예시입니다. 단계별 세부 상태 일부는 추정값이니, 실제 ‘채용현황판 백데이터’ 엑셀을 올려서 교체해 주세요." : ""}</div>
+  <div class="grid2">
+    <div class="box">
+      <h3>엑셀 업로드</h3>
+      <label class="drop" id="drop" for="f-file">
+        <span><b>채용현황 엑셀(.xlsx)</b>을 끌어다 놓거나 눌러서 선택하세요.</span>
+        <span class="small muted">채용현황 · 프로세스 · 권한부여대상자 시트를 읽습니다. 원본 파일은 수정하지 않습니다.</span>
+        <input id="f-file" type="file" accept=".xlsx,.xls" hidden>
+      </label>
+      ${p ? `
+        <div class="notice ${p.errors.length ? "danger" : ""}">
+          <b>${esc(p.name)}</b> 검증 결과 · ${p.errors.length ? `<b>오류 ${p.errors.length}건</b>. 기존 데이터를 그대로 유지합니다.` : `오류 없음 · 공고 ${p.rows.length}건${p.warnings.length ? ` · 경고 ${p.warnings.length}건` : ""}`}
+        </div>
+        ${issueTable(p.errors, true)}
+        ${p.warnings.length ? `<details><summary>경고 ${p.warnings.length}건 보기 (자동 수정하지 않음)</summary>${issueTable(p.warnings, false)}</details>` : ""}
+        ${!p.errors.length ? `<div class="small">${previewDiff(p.rows)}</div>` : ""}
+        <div class="row"><button class="btn primary" data-act="apply" ${p.errors.length ? "disabled" : ""}>현황판에 반영</button><button class="btn" data-act="clear-preview">취소</button></div>` : ""}
+    </div>
+    <div class="box">
+      <h3>자동 동기화</h3>
+      <div class="stats small">
+        <div><span>연동 저장소</span><b>미설정</b><span>엑셀 저장 위치 확인 대기</span></div>
+        <div><span>자동 동기화</span><b>꺼짐</b><span>저장소 연결 후 서버에서 실행</span></div>
+      </div>
+      <div class="field"><label for="f-cycle">갱신 주기 (초기 제안값 1시간)</label>
+        <select id="f-cycle">${[0.5,1,2,4,8,24].map(h => `<option value="${h}" ${DB.cycleHours === h ? "selected" : ""}>${h < 1 ? "30분" : h + "시간"}</option>`).join("")}</select></div>
+      <p class="small muted">이 주기의 두 배 동안 정상 반영이 없으면 모든 사용자 화면에 최신성 경고가 표시됩니다.</p>
+      <div class="row"><button class="btn" data-act="manual-sync">지금 다시 반영</button>
+        <span class="small muted">${DB.lastFile ? `마지막으로 올린 ‘${esc(DB.lastFile.name)}’을 다시 검증합니다.` : "올린 파일이 없어 현재 데이터를 다시 확인합니다."}</span></div>
+      <p class="small muted">저장소가 연결되면 이 버튼은 저장소의 최신 파일을 가져옵니다. 연결 정보와 비밀번호는 서버 설정으로만 관리합니다.</p>
+    </div>
+  </div>
+  ${missing.length || fresh.length ? `<div class="box"><h3>확인이 필요한 공고</h3>
+    ${missing.map(j => `<div class="cand"><span class="tag warn" style="margin:0">원본에서 빠짐</span> ${esc(j.title)} <span class="small muted">자동 삭제하지 않고 유지 중입니다.</span></div>`).join("")}
+    ${fresh.map(j => `<div class="cand"><span class="tag new" style="margin:0">신규</span> <b>${esc(j.title)}</b> <span class="small muted">${esc(j.hq)} · ${esc(j.dept)}</span>
+      ${missing.length ? `<label class="small" for="lk-${j.id}">공고명·조직이 바뀐 기존 공고라면 연결:</label><select id="lk-${j.id}" data-link="${j.id}"><option value="">선택</option>${missing.map(m => `<option value="${m.id}">${esc(m.title)}</option>`).join("")}</select>` : ""}
+      <button class="btn" data-act="confirm-new" data-id="${j.id}">신규 공고로 확인</button></div>`).join("")}
+  </div>` : ""}`;
+}
+function previewDiff(rows){
+  const keys = new Map(DB.jobs.map(j => [j.key, j]));
+  let add = 0, chg = 0, same = 0;
+  rows.forEach(r => { const o = keys.get(keyOf(r.hq, r.dept, r.title)); if (!o) add++; else if (o.statuses.join() !== r.statuses.join()) chg++; else same++; });
+  const inFile = new Set(rows.map(r => keyOf(r.hq, r.dept, r.title)));
+  const miss = DB.jobs.filter(j => !inFile.has(j.key)).length;
+  const cnt = STAGES.map((s, i) => [s, rows.filter(r => r.statuses[i] === "active").length]).filter(x => x[1]);
+  return `반영하면: 신규 ${add}건 · 상태 변경 ${chg}건 · 변경 없음 ${same}건${miss ? ` · <b>파일에서 빠진 공고 ${miss}건</b>(삭제하지 않음)` : ""}<br>진행 중 단계: ${cnt.map(([s, n]) => `${s} ${n}`).join(" · ") || "없음"}`;
+}
+
+function permPanel(){
+  const viewers = DB.accounts.filter(a => a.role === "viewer");
+  const allCodes = [...new Set(DB.permRows.flatMap(r => r.codes))];
+  return `
+  ${DB.pendingPerm ? `<div class="notice warn row" style="justify-content:space-between"><span>권한부여대상자 시트가 바뀌었습니다 (${DB.pendingPerm.rows.length}개 조직). 검토 후 후보 목록에 반영하세요. 반영해도 실제 권한은 승인할 때만 바뀝니다.</span>
+    <span class="row"><button class="btn primary" data-act="perm-accept">후보 목록에 반영</button><button class="btn" data-act="perm-reject">보류</button></span></div>` : ""}
+  <div class="grid2">
+    <div class="box"><h3>계정과 역할</h3>
+      <p class="small muted">데모 계정입니다. 운영에서는 사내 로그인 계정으로 바뀝니다. 관리자 역할은 여기서 직접 지정합니다.</p>
+      <div class="tablebox"><table><thead><tr><th>계정</th><th>역할</th><th>열람 공고</th></tr></thead><tbody>
+      ${DB.accounts.map(a => `<tr><td>${esc(a.name)} <span class="mono muted">${esc(a.id)}</span></td><td>
+        <select data-role="${a.id}" aria-label="${esc(a.name)} 역할" ${a.id === session.userId ? "disabled" : ""}><option value="viewer" ${a.role === "viewer" ? "selected" : ""}>현업 열람자</option><option value="admin" ${a.role === "admin" ? "selected" : ""}>HR 관리자</option></select></td>
+        <td class="num">${a.role === "admin" ? "전체" : DB.grants.filter(g => g.userId === a.id).length + "건"}</td></tr>`).join("")}
+      </tbody></table></div>
+    </div>
+    <div class="box"><h3>대상자 코드 ↔ 계정 연결</h3>
+      <p class="small muted">권한 시트의 코드는 로그인 ID가 아닙니다. 실제 계정과 연결해야 후보로 쓸 수 있습니다. 여러 조직에 나오는 코드도 관리자로 간주하지 않습니다.</p>
+      <div class="tablebox"><table><thead><tr><th>코드</th><th>권한 시트 조직</th><th>연결 계정</th></tr></thead><tbody>
+      ${allCodes.map(c => `<tr><td><span class="code">${esc(c)}</span></td><td class="small">${DB.permRows.filter(r => r.codes.includes(c)).map(r => `${esc(fixedHq(r))} / ${esc(r.dept)}${fixedHq(r) !== r.hq ? ` <span class="muted">(원본: ${esc(r.hq)})</span>` : ""}`).join("<br>")}</td>
+        <td><select data-code="${esc(c)}" aria-label="코드 ${esc(c)} 연결 계정"><option value="">미연결 · 권한 적용 대기</option>${viewers.map(a => `<option value="${a.id}" ${DB.codeLinks[c] === a.id ? "selected" : ""}>${esc(a.name)}</option>`).join("")}</select></td></tr>`).join("")}
+      </tbody></table></div>
+      <p class="small muted">${DB.source === "예시 데이터" ? "예시에는 PRD에 언급된 조직 행만 들어 있습니다. 실제 시트(조직 24개)를 올리면 C~F열의 코드를 모두 읽습니다." : ""}</p>
+    </div>
+  </div>
+  <div class="box"><h3>공고별 열람 권한</h3>
+    <p class="small muted">본부와 부서가 모두 일치하는 권한 시트 행의 대상자를 후보로 보여 줍니다. 승인해야만 권한이 생기고, 자동 동기화는 회수한 권한을 다시 부여하지 않습니다. 계약관리부·재무기획부는 확인된 소속으로 정규화해 비교합니다.</p>
+    <div class="grid2">${DB.jobs.map(jobPerm).join("")}</div>
+  </div>
+  <div class="box"><h3>권한 변경 이력</h3>
+    ${DB.audit.length ? `<div class="tablebox"><table><thead><tr><th>시각</th><th>실행자</th><th>변경</th><th>공고</th><th>대상 계정</th><th>방법</th></tr></thead><tbody>
+    ${DB.audit.map(a => `<tr><td class="num small">${fmt(a.at)}</td><td>${esc(a.actor)}</td><td>${a.action === "회수" ? `<span class="tag danger" style="margin:0">회수</span>` : `<span class="tag new" style="margin:0">${esc(a.action)}</span>`}</td><td>${esc(jobTitle(a.jobId))}</td><td>${esc(acctName(a.userId))}</td><td class="small muted">${esc(a.detail || "")}</td></tr>`).join("")}
+    </tbody></table></div>` : `<p class="muted">아직 권한 변경이 없습니다.</p>`}
+  </div>`;
+}
+function jobPerm(j){
+  const c = candidatesFor(j);
+  const holders = DB.grants.filter(g => g.jobId === j.id);
+  const viewers = DB.accounts.filter(a => a.role === "viewer" && !holders.some(h => h.userId === a.id));
+  const revokedBefore = uid => DB.audit.some(a => a.jobId === j.id && a.userId === uid && a.action === "회수");
+  return `<div class="job-perm">
+    <div><b>${esc(j.title)}</b> <span class="mono muted">${j.id}</span><div class="small muted">${esc(j.hq)} · ${esc(j.dept)}</div></div>
+    ${c.matched ? `<div class="small">권한 시트 후보 ${c.codes.map(code => {
+        const uid = DB.codeLinks[code];
+        const has = uid && holders.some(h => h.userId === uid);
+        return `<div class="cand"><span class="code">${esc(code)}</span>${uid ? esc(acctName(uid)) : `<span class="muted">계정 미연결 · 적용 대기</span>`}
+          ${uid ? (has ? `<span class="tag new">열람 중</span>` : `<button class="btn" data-act="approve" data-u="${uid}" data-j="${j.id}" data-code="${esc(code)}">${revokedBefore(uid) ? "다시 승인" : "승인"}</button>${revokedBefore(uid) ? `<span class="small muted">회수됨</span>` : ""}`) : ""}</div>`;
+      }).join("")}</div>`
+      : `<div class="notice warn small">권한 시트에 같은 본부·부서 행이 없습니다. 열람 대상자를 직접 지정해 주세요.${j.dept === "소비자보호부" ? " 소비자보호관리책임자(W·D)는 다른 조직이라 자동으로 연결하지 않습니다." : ""}</div>`}
+    <div class="small"><b>현재 열람자</b> ${holders.length ? holders.map(h => `<span class="row" style="display:inline-flex;gap:4px;margin-right:10px">${esc(acctName(h.userId))}<button class="btn link danger" data-act="revoke" data-u="${h.userId}" data-j="${j.id}">회수</button></span>`).join("") : `<span class="muted">관리자만 열람</span>`}</div>
+    ${viewers.length ? `<div class="row small"><label for="g-${j.id}" class="muted">직접 지정</label><select id="g-${j.id}">${viewers.map(a => `<option value="${a.id}">${esc(a.name)}</option>`).join("")}</select><button class="btn" data-act="grant" data-j="${j.id}">부여</button></div>` : ""}
+  </div>`;
+}
+
+function logPanel(){
+  return `<div class="box"><h3>동기화 기록</h3>
+  <p class="small muted">동기화 시도 시각과 정상 반영 시각을 구분해 기록합니다. 실패하면 기존 정상 데이터를 그대로 유지합니다.</p>
+  <div class="tablebox"><table><thead><tr><th>시작</th><th>완료</th><th>방식</th><th>파일</th><th>결과</th><th class="num">반영 공고</th><th>오류·경고</th></tr></thead><tbody>
+  ${DB.syncs.map((s, i) => `<tr><td class="num small">${fmt(s.start)}</td><td class="num small">${fmt(s.end)}</td><td>${esc(s.source)}</td><td class="small">${esc(s.file || "")}</td>
+    <td>${s.result === "실패" ? `<span class="tag danger" style="margin:0">실패</span>` : s.result === "변경 없음" ? `<span class="tag" style="margin:0;border:1px solid var(--line)">변경 없음</span>` : `<span class="tag new" style="margin:0">성공</span>`}</td>
+    <td class="num">${s.result === "실패" ? "0" : s.count}</td>
+    <td>${s.errors.length || s.warnings.length ? `<details><summary>오류 ${s.errors.length} · 경고 ${s.warnings.length}</summary>${issueTable(s.errors, true)}${issueTable(s.warnings, false)}</details>` : '<span class="muted">없음</span>'}</td></tr>`).join("")}
+  </tbody></table></div></div>`;
+}
+
+function loginView(){
+  return `<div class="login">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">${"<i></i>".repeat(9)}</span><h1>채용현황판</h1></div>
+    <p>로그인한 사용자만 채용현황을 볼 수 있습니다. 확인할 계정을 고르세요.</p>
+    ${DB.accounts.map(a => `<button class="acct" data-login="${a.id}"><span><b>${esc(a.name)}</b> <span class="mono muted">${esc(a.id)}</span></span><span class="role">${a.role === "admin" ? "HR 관리자" : "현업 열람자 · " + DB.grants.filter(g => g.userId === a.id).length + "건"}</span></button>`).join("")}
+    <p class="demo-note">데모 로그인입니다. 실제 운영에서는 사내 로그인 연동과 서버의 공고별 권한 검사가 필요합니다. 이 페이지는 그 동작을 브라우저 안에서 재현하며, 새로고침하면 처음 상태로 돌아갑니다.</p>
+  </div>`;
+}
+
+function render(){
+  const r = route();
+  if (!session) { app.innerHTML = loginView(); return; }
+  const u = me();
+  let body;
+  try {
+    if (r.name === "admin") body = adminView();
+    else if (r.name === "job") body = jobView(r.id);
+    else body = boardView(u);
+  } catch(e){ body = `<div class="empty"><h2>볼 수 없는 화면입니다</h2><p>${esc(e.message)}</p></div>`; }
+  app.innerHTML = header(u, r) + `<main class="wrap">${body}
+    <p class="small muted" style="border-top:1px solid var(--line);padding-top:12px">데모 버전 · 브라우저 안에서 동작하며 새로고침하면 처음 상태로 돌아갑니다. 실제 운영에는 사내 로그인, 서버 권한 검사, 저장소 연동이 필요합니다.</p></main>`;
+}
+
+/* ───────── 이벤트 ───────── */
+async function handleFile(file){
+  if (!file) return;
+  const buf = await file.arrayBuffer();
+  const parsed = readWorkbook(buf.slice(0));
+  ui.preview = { name:file.name, modified:file.lastModified, buf, ...parsed, rows: parsed.rows || [] };
+  if (parsed.errors.length) {
+    DB.lastAttempt = nowD().toISOString();
+    logSync({ start:DB.lastAttempt, end:nowD().toISOString(), source:"업로드", file:file.name, result:"실패", count:0, errors:parsed.errors, warnings:parsed.warnings });
+  }
+  render();
+}
+
+app.addEventListener("click", async e => {
+  const t = e.target.closest("[data-act],[data-job],[data-tab],[data-login]");
+  if (!t) return;
+  try {
+    if (t.dataset.login) { session = { userId: t.dataset.login }; location.hash = ""; render(); return; }
+    if (t.dataset.job) { location.hash = "job-" + t.dataset.job; return; }
+    if (t.dataset.tab) { ui.adminTab = t.dataset.tab; render(); return; }
+    const act = t.dataset.act;
+    if (act === "logout") { session = null; ui.q = ui.org = ui.stage = ""; history.replaceState(null, "", location.pathname + location.search); render(); return; }
+    if (act === "apply") {
+      requireAdmin();
+      const p = ui.preview;
+      const rec = await runImport({ buf:p.buf, name:p.name, modified:p.modified, source:"업로드" });
+      if (!rec) return;
+      ui.preview = null;
+      toast(rec.result === "실패" ? "반영하지 못했습니다. 동기화 기록에서 원인을 확인하세요." : rec.result === "변경 없음" ? "이미 반영한 파일과 같습니다. 정상 확인 시각만 갱신했습니다." : `공고 ${rec.count}건을 반영했습니다.`);
+      render(); return;
+    }
+    if (act === "clear-preview") { ui.preview = null; render(); return; }
+    if (act === "manual-sync") {
+      requireAdmin();
+      if (DB.lastFile) { const rec = await runImport({ buf:DB.lastFile.buf, name:DB.lastFile.name, modified:DB.lastFile.modified, source:"수동 새로고침" }); if (rec) toast(rec.result === "실패" ? "다시 반영하지 못했습니다." : rec.result === "변경 없음" ? "변경 사항이 없습니다. 정상 확인 시각을 갱신했습니다." : "다시 반영했습니다."); }
+      else { const t0 = nowD().toISOString(); DB.lastAttempt = DB.lastOk = t0; logSync({ start:t0, end:nowD().toISOString(), source:"수동 새로고침", file:"예시 데이터", result:"변경 없음", count:DB.jobs.length, errors:[], warnings:[] }); toast("변경 사항이 없습니다. 정상 확인 시각을 갱신했습니다."); }
+      render(); return;
+    }
+    if (act === "confirm-new") { requireAdmin(); const j = DB.jobs.find(x => x.id === t.dataset.id); if (j) j.isNew = false; render(); return; }
+    if (act === "approve") { grant(t.dataset.u, t.dataset.j, `권한 시트 후보 승인 (코드 ${t.dataset.code})`); toast(`${acctName(t.dataset.u)}에게 열람 권한을 부여했습니다.`); render(); return; }
+    if (act === "grant") { const sel = document.getElementById("g-" + t.dataset.j); grant(sel.value, t.dataset.j, "관리자 직접 지정"); toast(`${acctName(sel.value)}에게 열람 권한을 부여했습니다.`); render(); return; }
+    if (act === "revoke") { revoke(t.dataset.u, t.dataset.j); toast(`${acctName(t.dataset.u)}의 열람 권한을 회수했습니다.`); render(); return; }
+    if (act === "perm-accept") { requireAdmin(); DB.permRows = DB.pendingPerm.rows; DB.pendingPerm = null; toast("권한 후보 목록을 갱신했습니다. 기존 권한은 바뀌지 않았습니다."); render(); return; }
+    if (act === "perm-reject") { requireAdmin(); DB.pendingPerm = null; render(); return; }
+  } catch(err){ toast(err.message); render(); }
+});
+
+app.addEventListener("keydown", e => { if (e.key === "Enter" && e.target.matches("tr[data-job]")) location.hash = "job-" + e.target.dataset.job; });
+
+app.addEventListener("input", e => {
+  if (e.target.id === "f-q") { ui.q = e.target.value; refreshList(); }
+});
+app.addEventListener("change", e => {
+  const t = e.target;
+  try {
+    if (t.id === "f-org") { ui.org = t.value; refreshList(); }
+    else if (t.id === "f-stage") { ui.stage = t.value; refreshList(); }
+    else if (t.id === "f-file") handleFile(t.files[0]);
+    else if (t.id === "f-cycle") { requireAdmin(); DB.cycleHours = Number(t.value); toast("갱신 주기를 변경했습니다."); render(); }
+    else if (t.dataset.code !== undefined && t.tagName === "SELECT") { requireAdmin(); const c = t.dataset.code; if (t.value) DB.codeLinks[c] = t.value; else delete DB.codeLinks[c]; toast(t.value ? `코드 ${c}를 ${acctName(t.value)} 계정에 연결했습니다. 권한은 공고별로 승인해야 생깁니다.` : `코드 ${c} 연결을 해제했습니다.`); render(); }
+    else if (t.dataset.role) {
+      requireAdmin(); const a = DB.accounts.find(x => x.id === t.dataset.role); a.role = t.value;
+      Object.keys(DB.codeLinks).forEach(c => { if (DB.codeLinks[c] === a.id && a.role === "admin") delete DB.codeLinks[c]; });
+      audit("역할 변경", "", a.id, t.value === "admin" ? "HR 관리자로 지정" : "현업 열람자로 변경"); render();
+    }
+    else if (t.dataset.link) {
+      requireAdmin();
+      const fresh = DB.jobs.find(j => j.id === t.dataset.link), old = DB.jobs.find(j => j.id === t.value);
+      if (!fresh || !old) return;
+      Object.assign(old, { key:fresh.key, hq:fresh.hq, dept:fresh.dept, title:fresh.title, statuses:fresh.statuses, updatedAt:fresh.updatedAt, missing:false });
+      (DB.history[old.id] ||= []).unshift({ at:nowD().toISOString(), changes:[`관리자가 공고명·조직 변경을 확인해 연결 (${fresh.title})`] });
+      DB.jobs = DB.jobs.filter(j => j.id !== fresh.id); delete DB.history[fresh.id];
+      toast(`기존 공고 ${old.id}에 연결했습니다. 열람 권한을 확인해 주세요.`); render();
+    }
+  } catch(err){ toast(err.message); render(); }
+});
+app.addEventListener("submit", e => {
+  if (e.target.id !== "direct") return;
+  e.preventDefault();
+  const v = document.getElementById("f-id").value.trim().toUpperCase();
+  if (v) location.hash = "job-" + v;
+});
+function refreshList(){
+  const box = document.getElementById("list");
+  if (!box) return;
+  try { box.innerHTML = listView(api.listJobs(), me()); } catch(err){ render(); }
+}
+
+// 업로드 영역 끌어다 놓기
+app.addEventListener("dragover", e => { const d = e.target.closest("#drop"); if (d) { e.preventDefault(); d.classList.add("over"); } });
+app.addEventListener("dragleave", e => { const d = e.target.closest("#drop"); if (d) d.classList.remove("over"); });
+app.addEventListener("drop", e => { const d = e.target.closest("#drop"); if (d) { e.preventDefault(); d.classList.remove("over"); handleFile(e.dataTransfer.files[0]); } });
+
+window.addEventListener("hashchange", () => { render(); window.scrollTo(0, 0); });
+setInterval(() => { if (session && !document.querySelector("input:focus,select:focus")) { const f = document.querySelector(".fresh"); if (f) { const tmp = document.createElement("div"); tmp.innerHTML = header(me(), route()); f.replaceWith(tmp.querySelector(".fresh")); } } }, 30000);
+
+render();
+})();
+</script>
