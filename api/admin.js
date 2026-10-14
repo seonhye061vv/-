@@ -41,7 +41,7 @@ function change(s, b) {
       const owner = Object.keys(s.links).find((c) => s.links[c] === acc && c !== code);
       if (acc && owner && !b.shareAccount) throw fail(400, `${acc}은(는) 이미 '${owner}'에 연결된 이메일입니다.`);
       if (!acc) { const before = s.links[code]; delete s.links[code]; audit(s, "HR 관리자", null, code, `계정 연결 해제: ${before || "없음"}`); break; }
-      if (acc === "admin") throw fail(400, "'admin'은 열람자 계정으로 쓸 수 없습니다.");
+      if (acc === "admin" || acc === "test_admin") throw fail(400, `'${acc}'은 열람자 계정으로 쓸 수 없습니다.`);
       let issued = null;
       // 새 계정은 임시 비밀번호를 자동으로 만든다. 첫 로그인 때 본인이 바꾼다.
       if (!s.accounts[acc]) { const temp = tempPassword(); s.accounts[acc] = { ...hashPassword(temp), mustChange: true }; issued = { name: code, account: acc, temp }; }

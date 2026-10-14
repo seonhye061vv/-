@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 
 const PORT = 3911, B = `http://127.0.0.1:${PORT}`;
 const dir = new URL(".", import.meta.url).pathname;
-const srv = spawn("node", ["dev-server.mjs"], { cwd: dir + "..", env: { ...process.env, PORT, SYNC_KEY: "test-sync-key-123" }, stdio: "inherit" });
+const srv = spawn("node", ["dev-server.mjs"], { cwd: dir + "..", env: { ...process.env, PORT, SYNC_KEY: "test-sync-key-123", TEST_ADMIN_PASSWORD: "test-admin-pw" }, stdio: "inherit" });
 await new Promise((r) => setTimeout(r, 800));
 
 const jar = {};
@@ -22,6 +22,9 @@ try {
   assert.equal((await call("anon", "/api/board")).status, 401); ok("로그인하지 않으면 데이터 없음");
   assert.equal((await post("admin", "/api/login", { id: "admin", password: "x" })).status, 401);
   assert.equal((await post("admin", "/api/login", { id: "admin", password: "admin" })).status, 200); ok("관리자 로그인");
+  assert.equal((await post("t", "/api/login", { id: "test_admin", password: "wrong" })).status, 401);
+  assert.equal((await post("t", "/api/login", { id: "TEST_ADMIN", password: "test-admin-pw" })).status, 200);
+  assert.equal((await call("t", "/api/admin")).status, 200); ok("테스트 관리자(test_admin) 로그인과 관리자 화면");
 
   const bad = await upload("admin", "sample_bad.xlsx");
   assert.ok(bad.body.pending.errs.length >= 2); ok(`잘못된 파일: 오류 ${bad.body.pending.errs.length}건 위치 안내`);
