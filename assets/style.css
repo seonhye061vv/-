@@ -299,6 +299,12 @@ dialog[open]::backdrop{animation:fade .2s ease}
 .kpi{position:relative;overflow:hidden;isolation:isolate}
 .kpi::before{content:"";position:absolute;z-index:-1;width:160px;height:160px;right:-50px;top:-50px;border-radius:50%;background:radial-gradient(circle,var(--accent) 0,transparent 70%);opacity:.14}
 .kpi .n.done{animation:pop .4s cubic-bezier(.34,1.56,.64,1)}
+/* 현재 단계 말풍선: 바깥으로 퍼지는 빛 + 점이 커졌다 작아짐 */
+@keyframes curRing{0%{box-shadow:0 0 0 0 rgba(31,163,154,.55)}70%,100%{box-shadow:0 0 0 9px rgba(31,163,154,0)}}
+@keyframes dotBeat{0%,100%{transform:scale(1)}40%{transform:scale(1.6)}}
+.pill.cur{animation:curRing 1.8s cubic-bezier(.2,.7,.2,1) infinite}
+.pill.cur::before{width:7px;height:7px;animation:dotBeat 1.8s ease-in-out infinite;box-shadow:0 0 6px rgba(255,255,255,.9)}
+tr.row:hover .pill.cur,.card:hover .pill.cur{background:var(--frame-2)}
 /* 표 행: 마우스를 올리면 왼쪽에 강조선 */
 tbody tr.row td:first-child{transition:box-shadow .2s,background-color .15s}
 tbody tr.row:hover td:first-child{box-shadow:inset 4px 0 0 var(--accent)}
