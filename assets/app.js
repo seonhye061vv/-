@@ -360,7 +360,7 @@ let lastView=null;
 const reduceMotion=matchMedia("(prefers-reduced-motion: reduce)").matches;
 function countUp(el){
   const n=+el.textContent;if(!(n>1))return;const t0=performance.now(),d=700;
-  const step=t=>{const k=Math.min(1,(t-t0)/d);el.textContent=Math.round(n*(1-Math.pow(1-k,3)));if(k<1)requestAnimationFrame(step)};requestAnimationFrame(step);
+  const step=t=>{const k=Math.min(1,(t-t0)/d);el.textContent=Math.round(n*(1-Math.pow(1-k,3)));if(k<1)requestAnimationFrame(step);else el.classList.add("done")};requestAnimationFrame(step);
 }
 function draw(){
   renderWho();renderBanners();renderSideCard();
