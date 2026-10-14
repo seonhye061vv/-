@@ -42,7 +42,7 @@ function exampleState(){
 }
 function blankState(){
   return {postings:{},order:[],nextId:1,candidates:[],links:{},grants:{},audit:[],syncLog:[],
-    meta:{mode:"none",lastSuccess:null,lastAttempt:null,lastChange:null,fileName:null,fileModified:null,intervalH:1,storage:""}};
+    meta:{mode:"none",lastSuccess:null,lastAttempt:null,lastChange:null,fileName:null,fileModified:null,intervalM:5,storage:""}};
 }
 function addPosting(s,p,now){
   const id="P"+String(s.nextId++).padStart(3,"0");
@@ -55,6 +55,10 @@ const keyOf=p=>[p.hq,p.dept,p.title].join("|");
 let S;
 try{const raw=localStorage.getItem(KEY); S=raw?JSON.parse(raw):null;}catch(e){S=null}
 if(!S||!S.postings) S=exampleState();
+// 확인 주기: 5분 단위 (5~60분). 이전 버전의 시간 단위 설정은 5분으로 바꿈
+const INTERVALS=Array.from({length:12},(_,i)=>(i+1)*5);
+if(!INTERVALS.includes(S.meta.intervalM)){S.meta.intervalM=5;delete S.meta.intervalH;}
+function fmtMin(n){return n<60?n+"분":(n%60?Math.floor(n/60)+"시간 "+n%60+"분":n/60+"시간")}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
 
 let ui={viewer:ADMIN,tab:"board",q:"",org:"",stage:"",pending:null,busy:false,mode:"admin",account:null,loginErr:""};
@@ -281,8 +285,8 @@ function renderFresh(){
   const hrs=(Date.now()-new Date(m.lastSuccess))/36e5;
   let state;
   if(m.mode==="example") state=`<span><span class="dot" style="background:var(--warn)"></span><b>예시 데이터</b></span>`;
-  else if(m.mode==="upload") state=hrs>m.intervalH*2
-    ?`<span><span class="dot" style="background:var(--warn)"></span><b>최신성 확인 필요</b> <span class="muted">· ${m.intervalH*2}시간 넘게 새 반영 없음</span></span>`
+  else if(m.mode==="upload") state=hrs*60>m.intervalM*2
+    ?`<span><span class="dot" style="background:var(--warn)"></span><b>최신성 확인 필요</b> <span class="muted">· ${fmtMin(m.intervalM*2)} 넘게 새 반영 없음</span></span>`
     :`<span><span class="dot" style="background:var(--accent)"></span><b>최신 상태</b></span>`;
   el.innerHTML=`<span>마지막 정상 반영 <b>${fmt(m.lastSuccess)}</b> <span class="muted">(${ago(m.lastSuccess)})</span></span>${state}`+
     (ui.viewer===ADMIN?`<span class="muted">반영 방식: 엑셀 업로드${m.fileName?" · "+esc(m.fileName):""}</span>`:"");
@@ -396,8 +400,8 @@ function renderUpload(){
     <div class="box">
       <h2>자동 동기화</h2>
       <div class="row-flex"><label for="interval" class="small">확인 주기</label>
-        <select id="interval">${[0.5,1,2,4,8,24].map(h=>`<option value="${h}" ${h==m.intervalH?"selected":""}>${h<1?"30분":h+"시간"}</option>`).join("")}</select>
-        <span class="small muted">초기 제안값 1시간. ${m.intervalH*2}시간 넘게 정상 반영이 없으면 화면 상단에 최신성 경고를 띄웁니다.</span></div>
+        <select id="interval">${INTERVALS.map(n=>`<option value="${n}" ${n==m.intervalM?"selected":""}>${fmtMin(n)}</option>`).join("")}</select>
+        <span class="small muted">5분 단위로 고를 수 있습니다. ${fmtMin(m.intervalM*2)} 넘게 정상 반영이 없으면 화면 상단에 최신성 경고를 띄웁니다.</span></div>
       <div class="row-flex"><span class="small">연동 저장소</span><span class="pill chk">미정 · 연결 안 됨</span><button class="btn sm" disabled>지금 동기화</button></div>
       <p class="small muted">자동 동기화는 브라우저를 닫아도 돌아가는 서버가 있어야 합니다. 엑셀 저장 위치(공유폴더, SharePoint/OneDrive 등)와 운영 서버가 정해지면 연결합니다. 지금은 업로드로만 반영됩니다.</p>
     </div></div>`;
@@ -494,7 +498,7 @@ document.addEventListener("change",e=>{
   if(t.id==="viewer"){ui.viewer=t.value;ui.q="";ui.org="";ui.stage="";render();return}
   if(t.id==="fOrg"){ui.org=t.value;render();return}
   if(t.id==="fStage"){ui.stage=t.value;render();return}
-  if(t.id==="interval"){S.meta.intervalH=parseFloat(t.value);save();render();return}
+  if(t.id==="interval"){S.meta.intervalM=parseInt(t.value,10);save();render();return}
   if(t.id==="file"&&t.files[0]){handleFile(t.files[0]);t.value="";return}
   if(t.dataset.link!==undefined&&ui.pending){
     const used=Object.entries(ui.pending.linkTo).find(([k,v])=>v===t.value&&k!==t.dataset.link);
