@@ -320,10 +320,21 @@ function renderPerm(){
         ${ui.permResult?(ui.permResult.errs.length?`<div class="msg e small">${ui.permResult.errs.map(e=>esc(e.msg+" "+e.fix)).join("<br>")}</div>`:`<div class="msg small">명단을 반영했습니다. ${ui.permResult.rows}개 부서, 대상자 ${ui.permResult.people}명.</div>`)+(ui.permResult.warns.length?`<div class="small" style="color:var(--warn)">${ui.permResult.warns.map(esc).join("<br>")}</div>`:""):""}
       </div>
       <div class="box"><h2>대상자 · 로그인 계정</h2>
+        <form id="addPerson" class="add-person">
+          <b class="small">대상자 직접 추가</b>
+          <div class="add-grid">
+            <input id="apName" required maxlength="40" placeholder="이름 (예: 홍길동 부장)" aria-label="이름">
+            <input id="apEmail" type="email" placeholder="name@hanafn.com" aria-label="로그인 이메일">
+            <select id="apOrg" aria-label="소속"><option value="">소속 없음 (공고별로 직접 승인)</option>${[...new Set(A.order.map(id=>A.postings[id].hq+" / "+A.postings[id].dept))].map(o=>`<option>${esc(o)}</option>`).join("")}</select>
+            <button class="btn sm primary" type="submit">추가</button>
+          </div>
+          <label class="row-flex small muted" style="gap:6px"><input type="checkbox" id="apLink" checked> 이메일이 있으면 바로 연결하고 임시 비밀번호 만들기</label>
+          <span class="small muted">소속을 고르면 그 본부·부서 공고의 후보로 들어가요. 직접 추가한 대상자는 명단 파일을 다시 올려도 남아 있어요.</span>
+        </form>
         <p class="small muted">대상자마다 로그인 이메일을 입력해 연결하면 임시 비밀번호가 자동으로 만들어집니다. 임시 비밀번호는 한 번만 보여 주니 바로 본인에게 전달하세요. 본인은 처음 로그인할 때 비밀번호를 새로 정합니다. 연결 전에는 승인해도 볼 수 없습니다.</p>
         ${ui.issued?`<div class="banner ex"><span><b>${esc(ui.issued.name)} 님 임시 비밀번호</b> · ${esc(ui.issued.account)} · <code id="tempPw" style="font-size:15px;user-select:all">${esc(ui.issued.temp)}</code> <button class="btn sm" id="copyTemp">복사</button> <button class="btn sm" id="hideTemp">닫기</button><br><span class="small">이 화면을 닫으면 다시 볼 수 없습니다. 잊으면 '임시 비밀번호 재발급'을 누르세요.</span></span></div>`:""}
         <div class="tbl-wrap"><table><thead><tr><th>대상자</th><th>권한 시트 조직</th><th>로그인 이메일</th><th>상태</th></tr></thead><tbody>
-        ${ppl.map((c,i)=>{const acc=A.links[c]||"";const sug=(A.suggest||{})[c]||"";const st=acc&&A.accounts&&A.accounts[acc];return `<tr><td style="white-space:nowrap"><b>${esc(c)}</b></td><td class="small">${A.codes[c].map(esc).join("<br>")}</td><td><div class="row-flex">
+        ${ppl.map((c,i)=>{const acc=A.links[c]||"";const sug=(A.suggest||{})[c]||"";const st=acc&&A.accounts&&A.accounts[acc];return `<tr><td style="white-space:nowrap"><b>${esc(c)}</b>${(A.manual||[]).includes(c)?` <span class="tag">직접 추가</span> <button class="btn sm" data-del-i="${i}">삭제</button>`:""}</td><td class="small">${A.codes[c].map(esc).join("<br>")}</td><td><div class="row-flex">
           <input type="email" id="lk-${i}" value="${esc(acc||sug)}" title="${acc?"":sug?"명단의 이메일입니다. 연결을 눌러야 계정이 만들어집니다.":""}" placeholder="name@hanafn.com" style="width:100%;min-width:230px;border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:6px 10px" autocomplete="off">
           <button class="btn sm" data-link-i="${i}">${acc?"저장":"연결"}</button>${acc?`<button class="btn sm" data-unlink-i="${i}">해제</button>`:""}</div></td>
           <td class="small" style="white-space:nowrap">${!acc?`<span class="muted">미연결</span>`:`${st&&st.mustChange?`<span class="pill chk">첫 로그인 전</span>`:`<span class="pill done">사용 중</span>`} <button class="btn sm" data-reissue-i="${i}">임시 비밀번호 재발급</button>`}</td></tr>`}).join("")||`<tr><td colspan="4" class="small muted">엑셀을 반영하면 권한부여대상자 시트의 이름이 여기에 나옵니다.</td></tr>`}
@@ -425,6 +436,9 @@ document.addEventListener("click",e=>{
     if(!one&&!confirm("본부·부서가 맞는 후보를 모든 공고에 승인할까요? 승인한 뒤에도 공고별로 회수할 수 있어요."))return;
     act(async()=>{const r=await post("/api/admin",{action:"grantAll",id:one||undefined});ui.bulkSkip=null;ui.bulkMsg=`${r.bulk.granted}건을 승인했어요.`;await load()});return}
   if(t.id==="dlTemp"){downloadTemps();return}
+  if(t.dataset.delI!==undefined){const c=people()[+t.dataset.delI];
+    if(!confirm(`직접 추가한 ${c} 님을 삭제할까요? 명단 파일에 없는 사람이면 계정 연결과 공고 승인도 함께 지워집니다.`))return;
+    act(async()=>{await post("/api/admin",{action:"removePerson",name:c});await load();ui.notice=`${c} 님을 삭제했습니다.`});return}
   if(t.id==="clearTemp"){if(confirm("임시 비밀번호 목록을 지울까요? 지우면 다시 볼 수 없어요.")){ui.issuedAll=[];render()}return}
   if(t.id==="logout"){act(async()=>{await post("/api/logout",{});me=null;B=null;A=null;ui.tab="board";ui.issued=null;ui.issuedAll=[];ui.bulkMsg="";ui.bulkSkip=null;ui.pwForm=false});return}
   if(t.dataset.grant){act(async()=>{A=await post("/api/admin",{action:"grant",code:t.dataset.grant,id:t.dataset.id});await load()});return}
@@ -473,6 +487,12 @@ document.addEventListener("submit",e=>{
       try{await post("/api/password",{current,next});me.mustChange=false;ui.pwForm=false;ui.pwErr="";await load();ui.notice="비밀번호를 바꿨습니다."}
       catch(err){ui.pwErr=err.message}
     });return}
+  if(e.target.id==="addPerson"){e.preventDefault();
+    const name=$("#apName").value.trim(),email=$("#apEmail").value.trim(),org=$("#apOrg").value,link=$("#apLink").checked;
+    const [hq,dept]=org?org.split(" / "):["",""];
+    act(async()=>{const r=await post("/api/admin",{action:"addPerson",name,email,hq,dept,link});
+      if(r.issued){ui.issued=r.issued;ui.issuedAll=ui.issuedAll.concat(r.issued)}
+      await load();ui.notice=`${name} 님을 대상자로 추가했습니다.${r.issued?" 임시 비밀번호를 만들었어요.":email?"":" 로그인 이메일을 넣고 연결하면 볼 수 있어요."}`});return}
   if(e.target.id!=="loginForm")return; e.preventDefault();
   const id=$("#accId").value.trim(), password=$("#accPw").value; ui.loginId=id;
   act(async()=>{

@@ -113,6 +113,17 @@ try {
   const x = await call("admin", "/api/admin", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "tempXlsx", rows: la.bulk.issued }) });
   assert.equal(x.status, 200);
   assert.equal((await post("kim", "/api/admin", { action: "linkAll" })).status, 403); ok("임시 비밀번호 엑셀 내려받기, 현업은 일괄 기능 사용 불가");
+  // 대상자 직접 추가
+  const org = ga.postings[ga.order[0]];
+  const ap = (await post("admin", "/api/admin", { action: "addPerson", name: "추가자  과장", email: "Add.Me@hanafn.com", hq: org.hq, dept: org.dept, link: true })).body;
+  assert.ok(ap.issued && ap.issued.account === "add.me@hanafn.com" && ap.links["추가자 과장"] === "add.me@hanafn.com");
+  assert.ok(ap.candidates[ga.order[0]].includes("추가자 과장") && ap.manual.includes("추가자 과장"));
+  assert.equal((await post("admin", "/api/admin", { action: "addPerson", name: "추가자 과장", hq: org.hq, dept: org.dept })).status, 400);
+  await call("admin", "/api/upload", { method: "POST", headers: { "content-type": "application/octet-stream", "x-kind": "perm", "x-file-name": "perm.xlsx" }, body: fs.readFileSync(dir + "sample_perm.xlsx") });
+  assert.ok((await call("admin", "/api/admin")).body.codes["추가자 과장"]); ok("대상자 직접 추가: 소속 후보·바로 연결, 명단을 다시 올려도 유지");
+  const rp = (await post("admin", "/api/admin", { action: "removePerson", name: "추가자 과장" })).body;
+  assert.ok(!rp.codes["추가자 과장"] && !rp.links["추가자 과장"]);
+  assert.equal((await post("admin", "/api/admin", { action: "removePerson", name: Object.keys(rp.suggest)[0] })).status, 400); ok("직접 추가한 대상자만 삭제, 연결도 함께 정리");
   // 완료 공고 표시 기간
   const r1 = await post("admin", "/api/admin", { action: "link", code: "S", account: "not-an-email" });
   assert.equal(r1.status, 400); ok("로그인 계정은 이메일 형식만 허용");

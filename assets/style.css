@@ -234,6 +234,12 @@ button.sb.sel .l{color:var(--accent);font-weight:700}
 .legend i.s-done{background:var(--done-bg);border-color:var(--done)}
 .legend i.s-ongoing{background:var(--accent);border-color:var(--accent)}
 .legend i.s-na{background:repeating-linear-gradient(45deg,var(--na-bg) 0 3px,transparent 3px 6px);border-color:var(--na)}
+/* 대상자 직접 추가 */
+.add-person{display:flex;flex-direction:column;gap:8px;background:var(--surface);border-radius:14px;padding:12px 14px}
+.add-grid{display:flex;flex-wrap:wrap;gap:8px}
+.add-grid input,.add-grid select{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:7px 10px;min-width:0;flex:1 1 170px}
+.add-grid select{flex-basis:240px}
+.add-grid .btn{flex:none}
 /* 한 번에 처리하기 */
 .bulk-steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px}
 .bulk-step{display:flex;align-items:center;gap:12px;background:var(--surface);border-radius:14px;padding:12px 14px}
