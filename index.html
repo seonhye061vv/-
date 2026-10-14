@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="description" content="채용 공고별 진행 단계를 현업 담당자가 직접 확인하는 채용현황판">
+<meta name="theme-color" content="#1fa39a">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>채용현황판</title>
@@ -12,18 +13,20 @@
 </head>
 <body>
 
-<div class="wrap">
-  <header class="top">
-    <div style="display:flex;flex-direction:column;gap:6px;min-width:0">
-      <h1>채용현황판</h1>
-      <div class="fresh" id="fresh"></div>
-    </div>
-    <div class="who" id="who"></div>
-  </header>
-
-  <div id="banners"></div>
-  <nav class="tabs" id="tabs" role="tablist"></nav>
-  <main id="view"></main>
+<div class="shell">
+  <aside class="side">
+    <div class="brand"><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="5" y="17" width="5" height="10" rx="2"/><rect x="13.5" y="9" width="5" height="18" rx="2"/><rect x="22" y="13" width="5" height="14" rx="2"/></svg><span>채용현황판</span></div>
+    <nav class="tabs" id="tabs" role="tablist" aria-label="메뉴"></nav>
+    <div class="side-card" id="sideCard"></div>
+  </aside>
+  <div class="main">
+    <header class="top">
+      <div class="top-l"><h1 id="pageTitle">채용현황판</h1><div class="fresh" id="fresh"></div></div>
+      <div class="who" id="who"></div>
+    </header>
+    <div id="banners"></div>
+    <main id="view"></main>
+  </div>
 </div>
 
 <dialog id="dlg"><div class="dlg" id="dlgBody"></div></dialog>

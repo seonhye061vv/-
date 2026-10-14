@@ -63,7 +63,7 @@ function ago(iso){if(!iso)return "";const m=Math.round((Date.now()-new Date(iso)
 const fmtMin=n=>n<60?n+"분":(n%60?Math.floor(n/60)+"시간 "+n%60+"분":n/60+"시간");
 
 function renderWho(){
-  $("#who").innerHTML=me?`<span class="small"><b>${isAdmin()?"HR 관리자":esc(me.id)+" 님"}</b></span>${!isAdmin()&&!me.mustChange?`<button class="btn sm" id="pwOpen">비밀번호 변경</button>`:""}<button class="btn sm" id="logout">로그아웃</button>`:"";
+  $("#who").innerHTML=me?`<span class="avatar" aria-hidden="true">${esc((isAdmin()?"HR":me.id).slice(0,2).toUpperCase())}</span><span class="small"><b>${isAdmin()?"HR 관리자":esc(me.id)+" 님"}</b></span>${!isAdmin()&&!me.mustChange?`<button class="btn sm" id="pwOpen">비밀번호 변경</button>`:""}<button class="btn sm" id="logout">로그아웃</button>`:"";
 }
 function renderFresh(){
   const el=$("#fresh");
@@ -77,6 +77,12 @@ function renderFresh(){
           :`<span><span class="dot" style="background:var(--accent)"></span><b>최신 상태</b></span>`)+
     (isAdmin()&&m.fileName?`<span class="muted">${m.source==="pc"?"PC 자동 동기화":"엑셀 업로드"} · ${esc(m.fileName)}</span>`:"");
 }
+function renderSideCard(){
+  const el=$("#sideCard");
+  el.innerHTML=!me?`<b>채용 진행 현황을 한눈에</b><span>HR이 등록한 이메일로 로그인하면 열람 권한을 받은 공고를 볼 수 있어요.</span>`
+    :isAdmin()?`<b>엑셀만 저장하세요</b><span>PC 자동 동기화가 켜져 있으면 지정한 폴더의 엑셀이 현황판에 바로 반영돼요.</span>`
+    :`<b>공고가 안 보이나요?</b><span>열람 권한이 필요하면 HR 담당자에게 문의해 주세요.</span>`;
+}
 function renderBanners(){
   const b=[];
   if(ui.error) b.push(`<div class="banner err"><span>${esc(ui.error)}</span></div>`);
@@ -84,27 +90,41 @@ function renderBanners(){
   if(isAdmin()&&A&&A.pending&&!A.pending.errs.length&&ui.tab!=="upload") b.push(`<div class="banner ex"><span><b>반영 대기 중인 파일이 있습니다.</b> ${A.pending.source==="pc"?"PC 자동 동기화에서 공고명·조직이 바뀐 것으로 보여 확인을 기다립니다. ":""}<b>엑셀 반영</b> 탭에서 확인해 주세요.</span></div>`);
   $("#banners").innerHTML=b.join("");
 }
+// 사이드바 메뉴 아이콘 (선 아이콘)
+const ICON={board:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',upload:'<path d="M12 16V4M7 9l5-5 5 5M4 20h16"/>',perm:'<circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-6 7-6s7 2 7 6M17 11l2 2 4-4"/>',sync:'<path d="M20 12a8 8 0 0 1-14 5M4 12a8 8 0 0 1 14-5M18 3v4h-4M6 21v-4h4"/>',log:'<path d="M8 6h13M8 12h13M8 18h13M3 6h1M3 12h1M3 18h1"/>'};
+const TABS=[["board","현황판"],["upload","엑셀 반영"],["perm","열람 권한"],["sync","PC 자동 동기화"],["log","반영 기록"]];
 function renderTabs(){
-  if(!isAdmin()){$("#tabs").innerHTML="";ui.tab="board";return}
-  const t=[["board","현황판"],["upload","엑셀 반영"],["perm","열람 권한"],["sync","PC 자동 동기화"],["log","반영 기록"]];
-  $("#tabs").innerHTML=t.map(([k,l])=>`<button role="tab" data-tab="${k}" aria-selected="${ui.tab===k}">${l}</button>`).join("");
+  if(!isAdmin()) ui.tab="board";
+  const t=isAdmin()?TABS:TABS.slice(0,1);
+  $("#tabs").innerHTML=t.map(([k,l])=>`<button role="tab" data-tab="${k}" aria-selected="${ui.tab===k}"><svg viewBox="0 0 24 24" aria-hidden="true">${ICON[k]}</svg>${l}</button>`).join("");
+  $("#pageTitle").textContent=(TABS.find(x=>x[0]===ui.tab)||TABS[0])[1];
 }
 
 function renderLogin(){
-  return `<div class="box" style="max-width:420px;margin:24px auto;width:100%">
-    <h2>로그인</h2>
-    <p class="small muted">현업 담당자는 HR 담당자가 등록한 이메일과 비밀번호로 로그인하면, 열람 권한을 받은 공고만 볼 수 있습니다.</p>
-    <form id="loginForm" class="panel" style="gap:10px">
-      <label for="accId" class="small">로그인 이메일 (관리자는 admin)</label>
-      <input type="text" id="accId" autocomplete="username" inputmode="email" required value="${esc(ui.loginId||"")}">
-      <label for="accPw" class="small">비밀번호</label>
-      <input type="password" id="accPw" autocomplete="current-password" required style="border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:6px 10px">
-      ${ui.loginErr?`<div class="msg e small">${esc(ui.loginErr)}</div>`:""}
-      <button class="btn primary" type="submit" ${ui.busy?"disabled":""}>로그인</button>
-    </form>
+  const bars=[38,62,48,80,56,92,44,70,52];
+  return `<div class="landing">
+    <section class="hero">
+      <span class="eyebrow">채용현황판</span>
+      <h2>우리 부서 채용, 지금 어느 단계인지 바로 확인하세요</h2>
+      <p class="muted">지원서 접수부터 최종 합격 발표까지 9단계를 HR 엑셀과 같은 기준으로 보여 드려요. 열람 권한을 받은 공고만 보입니다.</p>
+      <div class="hero-chart" aria-hidden="true">${bars.map((h,i)=>`<i style="height:${h}%"${i===5?' class="peak"':""}></i>`).join("")}<span class="tip">처우협의 진행 중</span></div>
+      <ul class="feats"><li><b>9</b>단계 진행 현황</li><li><b>1시간</b>마다 자동 반영</li><li><b>공고별</b> 열람 권한</li></ul>
+    </section>
+    <div class="box login">
+      <h2>로그인</h2>
+      <p class="small muted">HR 담당자가 등록한 이메일과 비밀번호로 로그인하세요.</p>
+      <form id="loginForm" class="panel" style="gap:10px">
+        <label for="accId" class="small">로그인 이메일 (관리자는 admin)</label>
+        <input type="text" id="accId" autocomplete="username" inputmode="email" required value="${esc(ui.loginId||"")}">
+        <label for="accPw" class="small">비밀번호</label>
+        <input type="password" id="accPw" autocomplete="current-password" required>
+        ${ui.loginErr?`<div class="msg e small">${esc(ui.loginErr)}</div>`:""}
+        <button class="btn primary" type="submit" ${ui.busy?"disabled":""}>로그인</button>
+      </form>
+      <p class="small muted">처음 로그인하면 임시 비밀번호를 본인 비밀번호로 바꾸는 화면이 나와요.</p>
+    </div>
   </div>`;
 }
-
 function renderPwChange(){
   const first=me.mustChange;
   const f=(id,l,ac)=>`<label for="${id}" class="small">${l}</label><input type="password" id="${id}" autocomplete="${ac}" required minlength="${id==="pwCur"?1:8}" style="border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:6px 10px">`;
@@ -140,7 +160,7 @@ function renderBoard(){
     <div class="kpi"><span class="small muted">${isAdmin()?"전체 공고":"열람 가능한 공고"}</span><span class="n">${all.length}</span><span class="small muted">건</span></div>
     <div class="sum-side">
       <span class="small muted">현재 단계별 공고 수</span>
-      <div class="stagebar">${STAGES.map((s,i)=>`<div class="sb" title="${s} ${counts[i]}건"><span class="c ${counts[i]?"":"zero"}">${counts[i]}</span><div class="col"><div class="fill" style="height:${counts[i]/max*100}%"></div></div><span class="i">${i+1}</span><span class="l">${s}</span></div>`).join("")}</div>
+      <div class="stagebar">${STAGES.map((s,i)=>`<div class="sb${counts[i]&&counts[i]===max?" peak":""}" title="${s} ${counts[i]}건"><span class="c ${counts[i]?"":"zero"}">${counts[i]}</span><div class="col"><div class="fill" style="height:${Math.max(counts[i]/max*100,counts[i]?8:0)}%"></div></div><span class="i">${i+1}</span><span class="l">${s}</span></div>`).join("")}</div>
       <span class="sum-note">${allDone?`전체 단계 처리 완료 ${allDone}건 · `:""}${chk?`현재 단계 확인 필요 ${chk}건 · `:""}${multi?`<b>${multi}건이 여러 단계를 동시에 진행 중이라 단계별 합계가 공고 수보다 클 수 있습니다.</b>`:"한 공고가 여러 단계를 동시에 진행하면 단계별 합계가 공고 수보다 클 수 있습니다."}</span>
     </div>
   </section>
@@ -306,8 +326,8 @@ function renderLog(){
 }
 
 function render(){
-  renderWho();renderBanners();
-  const v=$("#view");
+  renderWho();renderBanners();renderSideCard();
+  const v=$("#view");$("#pageTitle").textContent="채용현황판";$("#pageTitle").hidden=!me;
   if(!me){$("#fresh").innerHTML="";$("#tabs").innerHTML="";v.innerHTML=renderLogin();if($("#dlg").open)$("#dlg").close();return}
   if(!isAdmin()&&(me.mustChange||ui.pwForm)){$("#fresh").innerHTML="";$("#tabs").innerHTML="";v.innerHTML=renderPwChange();return}
   renderFresh();renderTabs();
