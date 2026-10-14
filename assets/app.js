@@ -8,7 +8,7 @@ const REPO="https://github.com/seonhye061vv/-";
 let me=null;        // {id, role}
 let B=null;         // 현황판 데이터 {meta, postings[]}
 let A=null;         // 관리자 전체 데이터
-let ui={tab:"board",q:"",org:"",stage:"",pending:null,linkTo:{},busy:false,loginErr:"",notice:"",error:""};
+let ui={tab:"board",q:"",org:"",stage:"",pending:null,linkTo:{},busy:false,loginErr:"",notice:"",error:"",issued:null,pwForm:false,pwErr:""};
 const isAdmin=()=>me&&me.role==="admin";
 
 /* ---------- 서버 호출 ---------- */
@@ -28,6 +28,7 @@ async function load(){
     if(A.pending&&(!ui.pending||ui.pending.id!==A.pending.id)){ui.pending=A.pending;ui.linkTo={}}
     if(!A.pending&&ui.pending&&!ui.pending.errs.length) ui.pending=null;
   }else{
+    if(me.mustChange){B=null;return}
     B=await api("/api/board");
   }
 }
@@ -62,7 +63,7 @@ function ago(iso){if(!iso)return "";const m=Math.round((Date.now()-new Date(iso)
 const fmtMin=n=>n<60?n+"분":(n%60?Math.floor(n/60)+"시간 "+n%60+"분":n/60+"시간");
 
 function renderWho(){
-  $("#who").innerHTML=me?`<span class="small"><b>${isAdmin()?"HR 관리자":esc(me.id)+" 님"}</b></span><button class="btn sm" id="logout">로그아웃</button>`:"";
+  $("#who").innerHTML=me?`<span class="small"><b>${isAdmin()?"HR 관리자":esc(me.id)+" 님"}</b></span>${!isAdmin()&&!me.mustChange?`<button class="btn sm" id="pwOpen">비밀번호 변경</button>`:""}<button class="btn sm" id="logout">로그아웃</button>`:"";
 }
 function renderFresh(){
   const el=$("#fresh");
@@ -104,6 +105,22 @@ function renderLogin(){
   </div>`;
 }
 
+function renderPwChange(){
+  const first=me.mustChange;
+  const f=(id,l,ac)=>`<label for="${id}" class="small">${l}</label><input type="password" id="${id}" autocomplete="${ac}" required minlength="${id==="pwCur"?1:8}" style="border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:6px 10px">`;
+  return `<div class="box" style="max-width:420px;margin:24px auto;width:100%">
+    <h2>${first?"비밀번호를 새로 정해 주세요":"비밀번호 변경"}</h2>
+    <p class="small muted">${first?"처음 로그인하셨습니다. HR 담당자에게 받은 임시 비밀번호를 본인만 아는 비밀번호로 바꾼 뒤 현황판을 볼 수 있습니다.":"지금 비밀번호와 새 비밀번호를 입력해 주세요."} 새 비밀번호는 8자 이상입니다.</p>
+    <form id="pwForm" class="panel" style="gap:10px">
+      ${f("pwCur",first?"임시 비밀번호":"지금 비밀번호","current-password")}
+      ${f("pwNew","새 비밀번호","new-password")}
+      ${f("pwNew2","새 비밀번호 확인","new-password")}
+      ${ui.pwErr?`<div class="msg e small">${esc(ui.pwErr)}</div>`:""}
+      <div class="row-flex"><button class="btn primary" type="submit" ${ui.busy?"disabled":""}>변경</button>${first?"":`<button class="btn" type="button" id="pwCancel">취소</button>`}</div>
+    </form>
+  </div>`;
+}
+
 /* ---------- 현황판 ---------- */
 function renderBoard(){
   const every=B?B.postings:[];
@@ -134,7 +151,7 @@ function renderBoard(){
     <span class="small muted">${list.length}건</span>
   </div>
   ${isAdmin()?`<div class="row-flex small"><label for="doneDays" class="muted">완료 공고 표시</label>
-    <select id="doneDays">${(A.doneDaysOptions||[0,7,14,30,60,90]).map(d=>`<option value="${d}" ${d==(B.meta.doneDays||0)?"selected":""}>${d?`완료 후 ${d}일까지`:"계속 표시"}</option>`).join("")}</select>
+    <select id="doneDays">${(A.doneDaysOptions||[0,7,14,30,60,90]).map(d=>`<option value="${d}" ${d==(B.meta.doneDays??7)?"selected":""}>${d?`완료 후 ${d}일까지`:"계속 표시"}</option>`).join("")}</select>
     <span class="muted">모든 단계가 완료·해당사항 없음이 된 공고에 적용됩니다. 기간이 지나면 현업 화면에서 사라지고, 관리자는 아래에서 다시 볼 수 있습니다.</span>
     ${hiddenN?`<label class="row-flex"><input type="checkbox" id="showExpired" ${ui.showExpired?"checked":""}> 기간 지난 완료 공고 ${hiddenN}건 보기</label>`:""}</div>`:""}
   ${list.length?`
@@ -216,7 +233,7 @@ const personLabel=c=>A.links[c]?`${c} (${A.links[c]})`:`${c} · 계정 미연결
 function renderPerm(){
   const ppl=people();
   return `<div class="panel">
-    <div class="banner info"><span>권한은 엑셀에서 자동으로 주지 않습니다. ① 오른쪽에서 대상자마다 로그인 이메일과 비밀번호를 정하고 ② 공고마다 대상자를 골라 승인해야 현업이 볼 수 있습니다. 재무기획부는 경영기획본부, 계약관리부는 손님지원본부 소속으로 맞춰 후보를 찾습니다.</span></div>
+    <div class="banner info"><span>권한은 엑셀에서 자동으로 주지 않습니다. ① 오른쪽에서 대상자마다 로그인 이메일을 연결하고 ② 공고마다 대상자를 골라 승인해야 현업이 볼 수 있습니다. 재무기획부는 경영기획본부, 계약관리부는 손님지원본부 소속으로 맞춰 후보를 찾습니다.</span></div>
     <div class="grid2">
     <div class="box"><h2>공고별 열람 권한</h2>
       ${A.order.length?A.order.map(id=>{const p=A.postings[id];const cands=A.candidates[id]||[];const granted=Object.keys(A.grants).filter(c=>(A.grants[c]||[]).includes(id));
@@ -233,12 +250,13 @@ function renderPerm(){
     </div>
     <div class="panel">
       <div class="box"><h2>대상자 · 로그인 계정</h2>
-        <p class="small muted">대상자마다 로그인에 쓸 이메일과 첫 비밀번호(8자 이상)를 정해 연결하고, 그 정보를 본인에게 전달하세요. 현업은 이 이메일과 비밀번호로 로그인합니다. 연결 전에는 승인해도 볼 수 없습니다.</p>
-        <div class="tbl-wrap"><table><thead><tr><th>대상자</th><th>권한 시트 조직</th><th>로그인 이메일 · 비밀번호</th></tr></thead><tbody>
-        ${ppl.map((c,i)=>{const acc=A.links[c]||"";return `<tr><td style="white-space:nowrap"><b>${esc(c)}</b></td><td class="small">${A.codes[c].map(esc).join("<br>")}</td><td><div class="row-flex">
+        <p class="small muted">대상자마다 로그인 이메일을 입력해 연결하면 임시 비밀번호가 자동으로 만들어집니다. 임시 비밀번호는 한 번만 보여 주니 바로 본인에게 전달하세요. 본인은 처음 로그인할 때 비밀번호를 새로 정합니다. 연결 전에는 승인해도 볼 수 없습니다.</p>
+        ${ui.issued?`<div class="banner ex"><span><b>${esc(ui.issued.name)} 님 임시 비밀번호</b> · ${esc(ui.issued.account)} · <code id="tempPw" style="font-size:15px;user-select:all">${esc(ui.issued.temp)}</code> <button class="btn sm" id="copyTemp">복사</button> <button class="btn sm" id="hideTemp">닫기</button><br><span class="small">이 화면을 닫으면 다시 볼 수 없습니다. 잊으면 '임시 비밀번호 재발급'을 누르세요.</span></span></div>`:""}
+        <div class="tbl-wrap"><table><thead><tr><th>대상자</th><th>권한 시트 조직</th><th>로그인 이메일</th><th>상태</th></tr></thead><tbody>
+        ${ppl.map((c,i)=>{const acc=A.links[c]||"";const st=acc&&A.accounts&&A.accounts[acc];return `<tr><td style="white-space:nowrap"><b>${esc(c)}</b></td><td class="small">${A.codes[c].map(esc).join("<br>")}</td><td><div class="row-flex">
           <input type="email" id="lk-${i}" value="${esc(acc)}" placeholder="name@hanafn.com" style="width:180px;border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:6px 10px" autocomplete="off">
-          <input type="password" id="pw-${i}" placeholder="${acc?"비밀번호 변경 시":"첫 비밀번호"}" style="width:130px;border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:6px 10px" autocomplete="new-password">
-          <button class="btn sm" data-link-i="${i}">${acc?"저장":"연결"}</button>${acc?`<button class="btn sm" data-unlink-i="${i}">해제</button>`:""}</div></td></tr>`}).join("")||`<tr><td colspan="3" class="small muted">엑셀을 반영하면 권한부여대상자 시트의 이름이 여기에 나옵니다.</td></tr>`}
+          <button class="btn sm" data-link-i="${i}">${acc?"저장":"연결"}</button>${acc?`<button class="btn sm" data-unlink-i="${i}">해제</button>`:""}</div></td>
+          <td class="small" style="white-space:nowrap">${!acc?`<span class="muted">미연결</span>`:`${st&&st.mustChange?`<span class="pill chk">첫 로그인 전</span>`:`<span class="pill done">사용 중</span>`} <button class="btn sm" data-reissue-i="${i}">임시 비밀번호 재발급</button>`}</td></tr>`}).join("")||`<tr><td colspan="4" class="small muted">엑셀을 반영하면 권한부여대상자 시트의 이름이 여기에 나옵니다.</td></tr>`}
         </tbody></table></div></div>
       <div class="box"><h2>권한 변경 이력</h2>
         ${A.audit.length?`<div class="tbl-wrap"><table><thead><tr><th>시각</th><th>실행자</th><th>공고</th><th>대상자</th><th>변경</th></tr></thead><tbody>${A.audit.slice(0,50).map(a=>`<tr><td class="small">${fmt(a.at)}</td><td class="small">${esc(a.actor)}</td><td class="small">${esc(a.title||"-")}</td><td class="small">${esc(a.code)} · ${esc(a.account)}</td><td class="small">${esc(a.change)}</td></tr>`).join("")}</tbody></table></div>`:`<p class="small muted">아직 기록이 없습니다.</p>`}
@@ -286,6 +304,7 @@ function render(){
   renderWho();renderBanners();
   const v=$("#view");
   if(!me){$("#fresh").innerHTML="";$("#tabs").innerHTML="";v.innerHTML=renderLogin();if($("#dlg").open)$("#dlg").close();return}
+  if(!isAdmin()&&(me.mustChange||ui.pwForm)){$("#fresh").innerHTML="";$("#tabs").innerHTML="";v.innerHTML=renderPwChange();return}
   renderFresh();renderTabs();
   if(!B){v.innerHTML=`<div class="empty">불러오는 중…</div>`;return}
   v.innerHTML=!isAdmin()||ui.tab==="board"?renderBoard():ui.tab==="upload"?renderUpload():ui.tab==="perm"?renderPerm():ui.tab==="sync"?renderSync():renderLog();
@@ -300,13 +319,20 @@ document.addEventListener("click",e=>{
   if(t.dataset.tab){ui.tab=t.dataset.tab;ui.error="";ui.notice="";render();return}
   if(t.dataset.id&&(t.matches("tr.row")||t.classList.contains("card"))){openDetail(t.dataset.id);return}
   if(t.id==="dlgClose"){$("#dlg").close();return}
-  if(t.id==="logout"){act(async()=>{await post("/api/logout",{});me=null;B=null;A=null;ui.tab="board"});return}
+  if(t.id==="logout"){act(async()=>{await post("/api/logout",{});me=null;B=null;A=null;ui.tab="board";ui.issued=null;ui.pwForm=false});return}
   if(t.dataset.grant){act(async()=>{A=await post("/api/admin",{action:"grant",code:t.dataset.grant,id:t.dataset.id});await load()});return}
   if(t.dataset.revoke){act(async()=>{A=await post("/api/admin",{action:"revoke",code:t.dataset.revoke,id:t.dataset.id});await load()});return}
   if(t.dataset.add){const c=document.getElementById("sel-"+t.dataset.add).value;if(!c){ui.error="승인할 대상자를 골라 주세요.";render();return}act(async()=>{await post("/api/admin",{action:"grant",code:c,id:t.dataset.add});await load()});return}
-  if(t.dataset.linkI!==undefined){const c=people()[+t.dataset.linkI];const acc=document.getElementById("lk-"+t.dataset.linkI).value.trim().toLowerCase();const pw=document.getElementById("pw-"+t.dataset.linkI).value;
+  if(t.dataset.linkI!==undefined){const c=people()[+t.dataset.linkI];const acc=document.getElementById("lk-"+t.dataset.linkI).value.trim().toLowerCase();
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(acc)){ui.error="로그인 이메일을 정확히 입력해 주세요.";render();return}
-    act(async()=>{await post("/api/admin",{action:"link",code:c,account:acc,password:pw||undefined});await load();ui.notice=`${c} 님의 로그인 계정을 ${acc}(으)로 저장했습니다.${pw?" 정한 비밀번호를 본인에게 전달해 주세요.":""}`});return}
+    act(async()=>{const r=await post("/api/admin",{action:"link",code:c,account:acc});ui.issued=r.issued||null;await load();ui.notice=`${c} 님의 로그인 계정을 ${acc}(으)로 저장했습니다.`});return}
+  if(t.dataset.reissueI!==undefined){const c=people()[+t.dataset.reissueI];const acc=A.links[c];
+    if(!confirm(`${c} 님(${acc})의 비밀번호를 새 임시 비밀번호로 바꿀까요? 지금 비밀번호는 더 이상 쓸 수 없습니다.`))return;
+    act(async()=>{const r=await post("/api/admin",{action:"password",account:acc});ui.issued=r.issued||null;await load()});return}
+  if(t.id==="copyTemp"){navigator.clipboard&&navigator.clipboard.writeText(ui.issued.temp).then(()=>{t.textContent="복사됨"},()=>{});return}
+  if(t.id==="hideTemp"){ui.issued=null;render();return}
+  if(t.id==="pwOpen"){ui.pwForm=true;ui.pwErr="";render();return}
+  if(t.id==="pwCancel"){ui.pwForm=false;ui.pwErr="";render();return}
   if(t.dataset.unlinkI!==undefined){const c=people()[+t.dataset.unlinkI];act(async()=>{await post("/api/admin",{action:"link",code:c,account:""});await load()});return}
   if(t.id==="pApply"){act(async()=>{const r=await post("/api/apply",{pendingId:ui.pending.id,linkTo:ui.linkTo});ui.pending=null;ui.linkTo={};await load();ui.tab="board";ui.notice=`반영했습니다. 변경 ${r.changed}건.`});return}
   if(t.id==="pDiscard"){act(async()=>{await post("/api/apply",{pendingId:ui.pending.id,discard:true});ui.pending=null;await load()});return}
@@ -331,6 +357,13 @@ document.addEventListener("change",e=>{
   }
 });
 document.addEventListener("submit",e=>{
+  if(e.target.id==="pwForm"){e.preventDefault();
+    const current=$("#pwCur").value,next=$("#pwNew").value;
+    if(next!==$("#pwNew2").value){ui.pwErr="새 비밀번호 두 칸이 서로 다릅니다.";render();return}
+    act(async()=>{
+      try{await post("/api/password",{current,next});me.mustChange=false;ui.pwForm=false;ui.pwErr="";await load();ui.notice="비밀번호를 바꿨습니다."}
+      catch(err){ui.pwErr=err.message}
+    });return}
   if(e.target.id!=="loginForm")return; e.preventDefault();
   const id=$("#accId").value.trim(), password=$("#accPw").value; ui.loginId=id;
   act(async()=>{
@@ -343,7 +376,7 @@ document.addEventListener("dragleave",e=>{const d=e.target.closest&&e.target.clo
 document.addEventListener("drop",e=>{const d=e.target.closest&&e.target.closest("#drop");if(d){e.preventDefault();d.classList.remove("over");const f=e.dataTransfer.files[0];if(f)handleFile(f)}});
 
 // 1분마다 새로 불러와 최신 데이터와 권한 변경을 반영 (회수되면 화면에서 사라짐)
-setInterval(()=>{if(me&&!ui.busy&&!(document.activeElement&&document.activeElement.matches("input,select")))refresh()},60000);
+setInterval(()=>{if(me&&!ui.busy&&!ui.pwForm&&!me.mustChange&&!(document.activeElement&&document.activeElement.matches("input,select")))refresh()},60000);
 document.addEventListener("visibilitychange",()=>{if(!document.hidden&&me)refresh()});
 
 (async()=>{

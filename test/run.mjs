@@ -39,8 +39,17 @@ try {
   assert.equal(matched, 7); assert.equal(A.candidates[risk].length, 0); ok("권한 후보 매칭 7공고, 확인 필요 2공고");
 
   // 현업 계정: 승인 전 권한 없음
-  await post("admin", "/api/admin", { action: "link", code: "H", account: "Kim.Audit@hanafn.com", password: "pass-1234" });
-  assert.equal((await post("kim", "/api/login", { id: "kim.audit@hanafn.com", password: "pass-1234" })).status, 200);
+  const lk = (await post("admin", "/api/admin", { action: "link", code: "H", account: "Kim.Audit@hanafn.com" })).body;
+  assert.ok(lk.issued && lk.issued.temp.length >= 10); assert.equal(lk.accounts["kim.audit@hanafn.com"].mustChange, true); ok("이메일 연결 시 임시 비밀번호 자동 발급");
+  const li = await post("kim", "/api/login", { id: "kim.audit@hanafn.com", password: lk.issued.temp });
+  assert.equal(li.status, 200); assert.equal(li.body.user.mustChange, true);
+  assert.equal((await call("kim", "/api/board")).status, 403); ok("첫 로그인 후 비밀번호를 바꾸기 전에는 공고 열람 불가");
+  assert.equal((await post("kim", "/api/password", { current: "wrong", next: "pass-1234" })).status, 400);
+  assert.equal((await post("kim", "/api/password", { current: lk.issued.temp, next: "short" })).status, 400);
+  assert.equal((await post("kim", "/api/password", { current: lk.issued.temp, next: "pass-1234" })).status, 200);
+  assert.equal((await call("kim", "/api/me")).body.user.mustChange, false);
+  assert.equal((await post("kim2", "/api/login", { id: "kim.audit@hanafn.com", password: lk.issued.temp })).status, 401);
+  assert.equal((await post("kim", "/api/login", { id: "kim.audit@hanafn.com", password: "pass-1234" })).status, 200); ok("본인이 정한 비밀번호로 변경, 임시 비밀번호는 더 이상 안 됨");
   assert.equal((await call("kim", "/api/board")).body.postings.length, 0); ok("승인 전에는 공고 0건");
   await post("admin", "/api/admin", { action: "grant", code: "H", id: audit });
   const kb = (await call("kim", "/api/board")).body;

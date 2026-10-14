@@ -17,5 +17,5 @@ export default handler(async (req, res) => {
   const s = await loadState();
   if (!checkPassword(password, s.accounts[uid]) || !codesOf(s, uid).length) throw fail(401, "아이디 또는 비밀번호가 맞지 않습니다.");
   setSession(res, { id: uid, role: "viewer" });
-  send(res, 200, { user: { id: uid, role: "viewer" } });
+  send(res, 200, { user: { id: uid, role: "viewer", mustChange: Boolean(s.accounts[uid].mustChange) } });
 });
