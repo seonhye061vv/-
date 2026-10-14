@@ -1,0 +1,13 @@
+{
+  "name": "recruit-board",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node dev-server.mjs",
+    "test": "node test/run.mjs"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "exceljs": "4.4.0"
+  }
+}
