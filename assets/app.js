@@ -10,6 +10,8 @@ let B=null;         // 현황판 데이터 {meta, postings[]}
 let A=null;         // 관리자 전체 데이터
 let ui={tab:"board",q:"",org:"",stage:"",pending:null,linkTo:{},busy:false,loginErr:"",notice:"",error:"",issued:null,pwForm:false,pwErr:""};
 const isAdmin=()=>me&&me.role==="admin";
+// 관리자 화면으로 보는 중인지 (현업 화면 미리보기 탭이면 현업과 똑같이 보여 준다)
+const adminView=()=>isAdmin()&&ui.tab!=="preview";
 
 /* ---------- 서버 호출 ---------- */
 async function api(path,opts={}){
@@ -27,6 +29,11 @@ async function load(){
     B={meta:A.meta,postings:A.order.map(id=>A.postings[id])};
     if(A.pending&&(!ui.pending||ui.pending.id!==A.pending.id)){ui.pending=A.pending;ui.linkTo={}}
     if(!A.pending&&ui.pending&&!ui.pending.errs.length) ui.pending=null;
+    if(ui.tab==="preview"){
+      const accs=pvAccounts();
+      if(!accs.includes(ui.pvAs)) ui.pvAs=accs[0]||"";
+      ui.pv=ui.pvAs?await api("/api/board?as="+encodeURIComponent(ui.pvAs)):null;
+    }
   }else{
     if(me.mustChange){B=null;return}
     B=await api("/api/board");
@@ -75,7 +82,7 @@ function renderFresh(){
   el.innerHTML=`<span>마지막 정상 반영 <b>${fmt(m.lastSuccess)}</b> <span class="muted">(${ago(m.lastSuccess)})</span></span>`+
     (stale?`<span><span class="dot" style="background:var(--warn)"></span><b>최신성 확인 필요</b> <span class="muted">· ${fmtMin(m.intervalM*2)} 넘게 새 반영 없음</span></span>`
           :`<span><span class="dot" style="background:var(--accent)"></span><b>최신 상태</b></span>`)+
-    (isAdmin()&&m.fileName?`<span class="muted">${m.source==="pc"?"PC 자동 동기화":"엑셀 업로드"} · ${esc(m.fileName)}</span>`:"");
+    (adminView()&&m.fileName?`<span class="muted">${m.source==="pc"?"PC 자동 동기화":"엑셀 업로드"} · ${esc(m.fileName)}</span>`:"");
 }
 function renderSideCard(){
   const el=$("#sideCard");
@@ -91,8 +98,8 @@ function renderBanners(){
   $("#banners").innerHTML=b.join("");
 }
 // 사이드바 메뉴 아이콘 (선 아이콘)
-const ICON={board:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',upload:'<path d="M12 16V4M7 9l5-5 5 5M4 20h16"/>',perm:'<circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-6 7-6s7 2 7 6M17 11l2 2 4-4"/>',sync:'<path d="M20 12a8 8 0 0 1-14 5M4 12a8 8 0 0 1 14-5M18 3v4h-4M6 21v-4h4"/>',log:'<path d="M8 6h13M8 12h13M8 18h13M3 6h1M3 12h1M3 18h1"/>'};
-const TABS=[["board","현황판"],["upload","엑셀 반영"],["perm","열람 권한"],["sync","PC 자동 동기화"],["log","반영 기록"]];
+const ICON={board:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',upload:'<path d="M12 16V4M7 9l5-5 5 5M4 20h16"/>',perm:'<circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-6 7-6s7 2 7 6M17 11l2 2 4-4"/>',sync:'<path d="M20 12a8 8 0 0 1-14 5M4 12a8 8 0 0 1 14-5M18 3v4h-4M6 21v-4h4"/>',log:'<path d="M8 6h13M8 12h13M8 18h13M3 6h1M3 12h1M3 18h1"/>',preview:'<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'};
+const TABS=[["board","현황판"],["upload","엑셀 반영"],["perm","열람 권한"],["sync","PC 자동 동기화"],["log","반영 기록"],["preview","현업 화면 보기"]];
 function renderTabs(){
   if(!isAdmin()) ui.tab="board";
   const t=isAdmin()?TABS:TABS.slice(0,1);
@@ -142,11 +149,11 @@ function renderPwChange(){
 }
 
 /* ---------- 현황판 ---------- */
-function renderBoard(){
-  const every=B?B.postings:[];
+function renderBoard(D=B){
+  const every=D?D.postings:[];
   const hiddenN=every.filter(p=>p.expired).length;
-  const all=isAdmin()&&!ui.showExpired?every.filter(p=>!p.expired):every;
-  if(!every.length) return `<div class="empty">${isAdmin()?"등록된 공고가 없습니다. 엑셀 반영 탭에서 파일을 올리거나 PC 자동 동기화를 연결해 주세요.":"열람 가능한 공고가 없습니다."}</div>`;
+  const all=adminView()&&!ui.showExpired?every.filter(p=>!p.expired):every;
+  if(!every.length) return `<div class="empty">${adminView()?"등록된 공고가 없습니다. 엑셀 반영 탭에서 파일을 올리거나 PC 자동 동기화를 연결해 주세요.":"열람 가능한 공고가 없습니다."}</div>`;
   const orgs=[...new Set(all.map(p=>p.hq+" / "+p.dept))];
   const q=ui.q.trim();
   const list=all.filter(p=>(!q||p.title.includes(q))&&(!ui.org||p.hq+" / "+p.dept===ui.org)&&(!ui.stage||curLabel(p).split(", ").includes(ui.stage)));
@@ -157,7 +164,7 @@ function renderBoard(){
   const stageOpts=[...STAGES,"전체 단계 처리 완료","현재 단계 확인 필요"];
   return `
   <section class="sum" aria-label="요약">
-    <div class="kpi"><span class="small muted">${isAdmin()?"전체 공고":"열람 가능한 공고"}</span><span class="n">${all.length}</span><span class="small muted">건</span></div>
+    <div class="kpi"><span class="small muted">${adminView()?"전체 공고":"열람 가능한 공고"}</span><span class="n">${all.length}</span><span class="small muted">건</span></div>
     <div class="sum-side">
       <span class="small muted">현재 단계별 공고 수</span>
       <div class="stagebar">${STAGES.map((s,i)=>`<div class="sb${counts[i]&&counts[i]===max?" peak":""}" title="${s} ${counts[i]}건"><span class="c ${counts[i]?"":"zero"}">${counts[i]}</span><div class="col"><div class="fill" style="height:${Math.max(counts[i]/max*100,counts[i]?8:0)}%"></div></div><span class="i">${i+1}</span><span class="l">${s}</span></div>`).join("")}</div>
@@ -170,7 +177,7 @@ function renderBoard(){
     <select id="fStage" aria-label="현재 단계"><option value="">현재 단계 전체</option>${stageOpts.map(o=>`<option ${o===ui.stage?"selected":""}>${o}</option>`).join("")}</select>
     <span class="small muted">${list.length}건</span>
   </div>
-  ${isAdmin()?`<div class="row-flex small"><label for="doneDays" class="muted">완료 공고 표시</label>
+  ${adminView()?`<div class="row-flex small"><label for="doneDays" class="muted">완료 공고 표시</label>
     <select id="doneDays">${(A.doneDaysOptions||[0,7,14,30,60,90]).map(d=>`<option value="${d}" ${d==(B.meta.doneDays??7)?"selected":""}>${d?`완료 후 ${d}일까지`:"계속 표시"}</option>`).join("")}</select>
     <span class="muted">모든 단계가 완료·해당사항 없음이 된 공고에 적용됩니다. 기간이 지나면 현업 화면에서 사라지고, 관리자는 아래에서 다시 볼 수 있습니다.</span>
     ${hiddenN?`<label class="row-flex"><input type="checkbox" id="showExpired" ${ui.showExpired?"checked":""}> 기간 지난 완료 공고 ${hiddenN}건 보기</label>`:""}</div>`:""}
@@ -188,14 +195,14 @@ function renderBoard(){
 
 async function openDetail(id){
   let p;
-  try{p=(await api("/api/board?id="+encodeURIComponent(id))).posting}catch(e){if($("#dlg").open)$("#dlg").close();ui.error=e.message;await refresh();return}
+  try{p=(await api("/api/board?id="+encodeURIComponent(id)+(isAdmin()&&ui.tab==="preview"&&ui.pvAs?"&as="+encodeURIComponent(ui.pvAs):""))).posting}catch(e){if($("#dlg").open)$("#dlg").close();ui.error=e.message;await refresh();return}
   $("#dlgBody").innerHTML=`
     <div class="dlg-h"><div style="display:flex;flex-direction:column;gap:4px;min-width:0"><span class="small muted">${esc(p.hq)} · ${esc(p.dept)}</span><h2>${esc(p.title)}</h2></div><button class="btn sm" id="dlgClose">닫기</button></div>
     <dl class="kv">
       <dt>본부</dt><dd>${esc(p.hq)}</dd><dt>부서</dt><dd>${esc(p.dept)}</dd>
       <dt>현재 단계</dt><dd>${curPills(p)}</dd>
-      <dt>마지막 반영</dt><dd>${fmt(B.meta.lastSuccess)}</dd>
-      ${isAdmin()?`<dt>내부 ID</dt><dd class="mono">${p.id}</dd><dt>최근 파일</dt><dd>${p.inLastFile!==false?"포함":"<span class='tag' style='margin:0'>최근 파일에 없음 · 자동 삭제하지 않음</span>"}</dd>`:""}
+      <dt>마지막 반영</dt><dd>${fmt((ui.tab==="preview"&&ui.pv?ui.pv:B).meta.lastSuccess)}</dd>
+      ${adminView()?`<dt>내부 ID</dt><dd class="mono">${p.id}</dd><dt>최근 파일</dt><dd>${p.inLastFile!==false?"포함":"<span class='tag' style='margin:0'>최근 파일에 없음 · 자동 삭제하지 않음</span>"}</dd>`:""}
     </dl>
     <div class="tbl-wrap"><table class="steps"><thead><tr><th>#</th><th>단계</th><th>상태</th></tr></thead>
     <tbody>${STAGES.map((s,i)=>`<tr class="${p.statuses[i]==="ongoing"?"on":""}"><td class="mono">${i+1}</td><td>${s}</td><td>${stCell(p.statuses[i])}</td></tr>`).join("")}</tbody></table></div>
@@ -244,6 +251,20 @@ async function handleFile(file){
     ui.pending=r.pending; ui.linkTo={};
     await load();
   });
+}
+
+/* ---------- 관리자: 현업 화면 보기 ---------- */
+// 계정이 연결된 대상자만 고를 수 있다 (연결 안 된 사람은 로그인할 수 없으므로)
+const pvAccounts=()=>[...new Set(Object.values(A.links||{}))].sort();
+function renderPreview(){
+  const accs=pvAccounts();
+  if(!accs.length) return `<div class="empty">로그인 계정이 연결된 대상자가 없습니다. '열람 권한' 탭에서 대상자에게 이메일을 연결하면 그 사람의 화면을 여기서 볼 수 있습니다.</div>`;
+  const nameOf=a=>Object.keys(A.links).filter(c=>A.links[c]===a).join(", ");
+  return `<div class="panel">
+    <div class="banner info" style="align-items:center"><span><b>현업 화면 미리보기</b> · 선택한 사람이 로그인했을 때 보는 화면 그대로입니다. 여기서는 보기만 할 수 있습니다.</span>
+      <select id="pvAs" aria-label="미리 볼 대상자" style="margin-left:auto">${accs.map(a=>`<option value="${esc(a)}" ${a===ui.pvAs?"selected":""}>${esc(nameOf(a))} (${esc(a)})</option>`).join("")}</select></div>
+    ${ui.pv?renderBoard(ui.pv):`<div class="empty">불러오는 중…</div>`}
+  </div>`;
 }
 
 /* ---------- 관리자: 열람 권한 ---------- */
@@ -332,16 +353,17 @@ function render(){
   if(!isAdmin()&&(me.mustChange||ui.pwForm)){$("#fresh").innerHTML="";$("#tabs").innerHTML="";v.innerHTML=renderPwChange();return}
   renderFresh();renderTabs();
   if(!B){v.innerHTML=`<div class="empty">불러오는 중…</div>`;return}
-  v.innerHTML=!isAdmin()||ui.tab==="board"?renderBoard():ui.tab==="upload"?renderUpload():ui.tab==="perm"?renderPerm():ui.tab==="sync"?renderSync():renderLog();
+  v.innerHTML=!isAdmin()||ui.tab==="board"?renderBoard():ui.tab==="upload"?renderUpload():ui.tab==="perm"?renderPerm():ui.tab==="preview"?renderPreview():ui.tab==="sync"?renderSync():renderLog();
   // 권한이 회수된 공고의 상세 화면은 바로 닫는다
-  if($("#dlg").open&&!B.postings.some(p=>p.id===$("#dlg").dataset.id)) $("#dlg").close();
+  const shown=ui.tab==="preview"&&ui.pv?ui.pv:B;
+  if($("#dlg").open&&!shown.postings.some(p=>p.id===$("#dlg").dataset.id)) $("#dlg").close();
 }
 
 /* ---------- 이벤트 ---------- */
 document.addEventListener("click",e=>{
   const t=e.target.closest("button,tr.row");
   if(!t) return;
-  if(t.dataset.tab){ui.tab=t.dataset.tab;ui.error="";ui.notice="";render();return}
+  if(t.dataset.tab){ui.tab=t.dataset.tab;ui.error="";ui.notice="";if(ui.tab==="preview"){ui.pv=null;render();act(load)}else render();return}
   if(t.dataset.id&&(t.matches("tr.row")||t.classList.contains("card"))){openDetail(t.dataset.id);return}
   if(t.id==="dlgClose"){$("#dlg").close();return}
   if(t.id==="logout"){act(async()=>{await post("/api/logout",{});me=null;B=null;A=null;ui.tab="board";ui.issued=null;ui.pwForm=false});return}
@@ -369,6 +391,7 @@ document.addEventListener("input",e=>{
 });
 document.addEventListener("change",e=>{
   const t=e.target;
+  if(t.id==="pvAs"){ui.pvAs=t.value;ui.pv=null;render();act(load);return}
   if(t.id==="fOrg"){ui.org=t.value;render();return}
   if(t.id==="fStage"){ui.stage=t.value;render();return}
   if(t.id==="doneDays"){act(async()=>{A=await post("/api/admin",{action:"doneDays",days:Number(t.value)});await load()});return}
