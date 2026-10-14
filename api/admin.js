@@ -12,7 +12,7 @@ function view(s, pending) {
     meta: { ...s.meta, doneDays: s.meta.doneDays ?? 7 }, order: s.order,
     postings: Object.fromEntries(s.order.map((id) => [id, { ...s.postings[id], expired: expired(s, s.postings[id]) }])),
     candidates: Object.fromEntries(s.order.map((id) => [id, candidatesFor(s, s.postings[id])])),
-    codes, links: s.links, grants: s.grants,
+    codes, links: s.links, suggest: Object.assign({}, ...s.candidates.map((c) => c.emails || {})), grants: s.grants,
     accounts: Object.fromEntries(Object.entries(s.accounts).map(([id, a]) => [id, { mustChange: Boolean(a.mustChange) }])),
     audit: s.audit.slice(0, 100), syncLog: s.syncLog.slice(0, 100),
     pending: summarize(pending), intervals: INTERVALS, doneDaysOptions: DONE_DAYS,

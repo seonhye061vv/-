@@ -80,6 +80,15 @@ try {
   assert.equal(r.body.status, "invalid"); ok("오래된 파일은 최신 데이터를 덮어쓰지 않음");
   const cfg = await call("pc", "/api/upload", { headers: { "x-sync-key": "test-sync-key-123" } });
   assert.equal(cfg.body.intervalM, 60); ok("PC 프로그램이 확인 주기(기본 1시간)를 받아 감");
+  // 권한부여대상자 명단만 올리기
+  const pf = (await call("admin", "/api/upload", { method: "POST", headers: { "content-type": "application/octet-stream", "x-kind": "perm", "x-file-name": "perm.xlsx" }, body: fs.readFileSync(dir + "sample_perm.xlsx") })).body.perm;
+  assert.equal(pf.errs.length, 0); assert.equal(pf.rows, 3); assert.equal(pf.people, 4); assert.equal(pf.warns.length, 1);
+  A = (await call("admin", "/api/admin")).body;
+  assert.equal(A.suggest["라마바 상무"], "rama.ba@example.com"); assert.equal(A.suggest["차카타 팀장"], undefined);
+  assert.deepEqual(A.candidates[audit].sort(), ["가나다 부장", "라마바 상무"]); assert.equal(A.links.H, "kim.audit@hanafn.com");
+  ok("명단 파일만 올리면 후보·추천 이메일만 바뀌고 기존 계정 연결은 유지");
+  const np = (await call("admin", "/api/upload", { method: "POST", headers: { "content-type": "application/octet-stream", "x-kind": "perm" }, body: fs.readFileSync(dir + "sample_ok.xlsx") })).body.perm;
+  assert.equal(np.errs.length, 0); ok("예전 양식(이름만, C~F열) 권한 시트도 읽음");
   // 완료 공고 표시 기간
   const r1 = await post("admin", "/api/admin", { action: "link", code: "S", account: "not-an-email" });
   assert.equal(r1.status, 400); ok("로그인 계정은 이메일 형식만 허용");

@@ -2,6 +2,7 @@
 import { handler, send, rawBody, fail } from "../lib/http.js";
 import { getSession, safeEqual } from "../lib/auth.js";
 import { loadState, saveState, prepare, savePending, logAttempt, syncFromPC, withLock } from "../lib/core.js";
+import { parsePermWorkbook } from "../lib/parse.js";
 
 const MAX = 4 * 1024 * 1024;
 
@@ -25,6 +26,20 @@ export default handler(async (req, res) => {
   if (buf.length > MAX) throw fail(413, "파일이 너무 큽니다 (4MB 이하).");
 
   if (isPC) return send(res, 200, await syncFromPC(buf, { fileName, fileModified }));
+
+  // 권한부여대상자 명단만 올리기: 후보 명단과 추천 이메일만 바꾸고, 실제 권한·계정은 그대로 둔다
+  if (req.headers["x-kind"] === "perm") {
+    const r = await parsePermWorkbook(buf);
+    if (r.errs.length) return send(res, 200, { perm: { errs: r.errs, warns: r.warns } });
+    const people = new Set(r.cands.flatMap((c) => c.codes));
+    await withLock(async () => {
+      const s = await loadState();
+      s.candidates = r.cands;
+      s.syncLog.unshift({ start: new Date().toISOString(), end: new Date().toISOString(), ok: true, file: fileName, how: "권한 명단", count: r.cands.length, errors: 0, warn: r.warns.length, by: "HR 관리자", note: `대상자 ${people.size}명` });
+      await saveState(s);
+    });
+    return send(res, 200, { perm: { errs: [], warns: r.warns, rows: r.cands.length, people: people.size } });
+  }
 
   // 관리자 업로드: 검증 결과를 보여 주고, 반영은 확인 후 /api/apply
   const out = await withLock(async () => {

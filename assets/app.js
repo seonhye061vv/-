@@ -249,12 +249,17 @@ function renderPerm(){
         </select><button class="btn sm primary" data-add="${id}">승인</button></div></div>`}).join(""):`<p class="small muted">공고가 없습니다.</p>`}
     </div>
     <div class="panel">
+      <div class="box"><h2>권한부여대상자 명단 올리기</h2>
+        <p class="small muted">본부 · 부서 · 권한부여대상자1 · 이메일주소 · 권한부여대상자2 · 이메일주소 … 순서의 엑셀을 올리면 공고별 후보와 대상자 목록이 이 명단으로 바뀝니다. 이미 연결한 계정과 승인한 권한은 그대로 남습니다.</p>
+        <label class="btn sm" style="align-self:flex-start">명단 파일 선택<input type="file" id="permFile" accept=".xlsx" hidden></label>
+        ${ui.permResult?(ui.permResult.errs.length?`<div class="msg e small">${ui.permResult.errs.map(e=>esc(e.msg+" "+e.fix)).join("<br>")}</div>`:`<div class="msg small">명단을 반영했습니다. ${ui.permResult.rows}개 부서, 대상자 ${ui.permResult.people}명.</div>`)+(ui.permResult.warns.length?`<div class="small" style="color:var(--warn)">${ui.permResult.warns.map(esc).join("<br>")}</div>`:""):""}
+      </div>
       <div class="box"><h2>대상자 · 로그인 계정</h2>
         <p class="small muted">대상자마다 로그인 이메일을 입력해 연결하면 임시 비밀번호가 자동으로 만들어집니다. 임시 비밀번호는 한 번만 보여 주니 바로 본인에게 전달하세요. 본인은 처음 로그인할 때 비밀번호를 새로 정합니다. 연결 전에는 승인해도 볼 수 없습니다.</p>
         ${ui.issued?`<div class="banner ex"><span><b>${esc(ui.issued.name)} 님 임시 비밀번호</b> · ${esc(ui.issued.account)} · <code id="tempPw" style="font-size:15px;user-select:all">${esc(ui.issued.temp)}</code> <button class="btn sm" id="copyTemp">복사</button> <button class="btn sm" id="hideTemp">닫기</button><br><span class="small">이 화면을 닫으면 다시 볼 수 없습니다. 잊으면 '임시 비밀번호 재발급'을 누르세요.</span></span></div>`:""}
         <div class="tbl-wrap"><table><thead><tr><th>대상자</th><th>권한 시트 조직</th><th>로그인 이메일</th><th>상태</th></tr></thead><tbody>
-        ${ppl.map((c,i)=>{const acc=A.links[c]||"";const st=acc&&A.accounts&&A.accounts[acc];return `<tr><td style="white-space:nowrap"><b>${esc(c)}</b></td><td class="small">${A.codes[c].map(esc).join("<br>")}</td><td><div class="row-flex">
-          <input type="email" id="lk-${i}" value="${esc(acc)}" placeholder="name@hanafn.com" style="width:180px;border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:6px 10px" autocomplete="off">
+        ${ppl.map((c,i)=>{const acc=A.links[c]||"";const sug=(A.suggest||{})[c]||"";const st=acc&&A.accounts&&A.accounts[acc];return `<tr><td style="white-space:nowrap"><b>${esc(c)}</b></td><td class="small">${A.codes[c].map(esc).join("<br>")}</td><td><div class="row-flex">
+          <input type="email" id="lk-${i}" value="${esc(acc||sug)}" title="${acc?"":sug?"명단의 이메일입니다. 연결을 눌러야 계정이 만들어집니다.":""}" placeholder="name@hanafn.com" style="width:180px;border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:6px 10px" autocomplete="off">
           <button class="btn sm" data-link-i="${i}">${acc?"저장":"연결"}</button>${acc?`<button class="btn sm" data-unlink-i="${i}">해제</button>`:""}</div></td>
           <td class="small" style="white-space:nowrap">${!acc?`<span class="muted">미연결</span>`:`${st&&st.mustChange?`<span class="pill chk">첫 로그인 전</span>`:`<span class="pill done">사용 중</span>`} <button class="btn sm" data-reissue-i="${i}">임시 비밀번호 재발급</button>`}</td></tr>`}).join("")||`<tr><td colspan="4" class="small muted">엑셀을 반영하면 권한부여대상자 시트의 이름이 여기에 나옵니다.</td></tr>`}
         </tbody></table></div></div>
@@ -350,6 +355,7 @@ document.addEventListener("change",e=>{
   if(t.id==="showExpired"){ui.showExpired=t.checked;render();return}
   if(t.id==="interval"){act(async()=>{A=await post("/api/admin",{action:"interval",minutes:Number(t.value)});await load()});return}
   if(t.id==="file"&&t.files[0]){handleFile(t.files[0]);t.value="";return}
+  if(t.id==="permFile"&&t.files[0]){const f=t.files[0];t.value="";act(async()=>{const r=await api("/api/upload",{method:"POST",headers:{"Content-Type":"application/octet-stream","X-File-Name":encodeURIComponent(f.name),"X-Kind":"perm"},body:f});ui.permResult=r.perm;await load()});return}
   if(t.dataset.link!==undefined&&ui.pending){
     const used=Object.entries(ui.linkTo).find(([k,v])=>v===t.value&&k!==t.dataset.link);
     if(used&&t.value){t.value="";return}

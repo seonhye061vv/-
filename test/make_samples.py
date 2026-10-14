@@ -39,3 +39,10 @@ for row in q3.iter_rows(min_row=2,min_col=3,max_col=6):
 w3=wb3["채용현황"]
 for i in range(9): w3.cell(9,4+i,"완료")
 wb3.save(os.path.join(out,"sample_names.xlsx"))
+# 권한부여대상자 명단만 담은 파일 (이름·이메일 쌍, 시트 이름 자유). 예시 이름·주소만 사용
+wb4=openpyxl.Workbook(); q4=wb4.active; q4.title="시트1"
+q4.append(["본부","부서","권한부여대상자1","이메일주소","권한부여대상자2","이메일주소","권한부여대상자3","이메일주소"])
+q4.append(["CEO 임원","감사부","가나다 부장","gana.da@example.com","라마바 상무","rama.ba@example.com","라마바 상무","rama.ba@example.com"])
+q4.append(["경영기획본부","재무기획부","사아자 부장","saa.ja@example.com","라마바 상무","rama.ba@example.com"])
+q4.append(["영업본부","하이브리드사업부","차카타 팀장","chaka@example","라마바 상무","rama.ba@example.com"])
+wb4.save(os.path.join(out,"sample_perm.xlsx"))
