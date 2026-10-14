@@ -22,7 +22,7 @@ try {
   $headers = @{ 'X-Sync-Key' = $key }
 
   # 관리자 화면에서 정한 확인 주기를 따릅니다.
-  $interval = 5
+  $interval = 60
   try { $interval = [int](Invoke-RestMethod -Uri "$server/api/upload" -Headers $headers -Method Get -TimeoutSec 30).intervalM } catch { }
   if (Test-Path $stateF) {
     $last = [datetime]::Parse((Get-Content $stateF -Raw).Trim())

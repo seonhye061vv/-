@@ -252,7 +252,7 @@ function renderSync(){
       <ol class="plan small">
         <li><a href="${REPO}/archive/refs/heads/main.zip" target="_blank" rel="noopener" style="color:var(--accent)">프로그램 내려받기(zip)</a>를 받아 압축을 풀고, 안의 <b>agent</b> 폴더를 <span class="mono">C:\\RecruitBoard\\agent</span>처럼 한글 없는 경로에 둡니다.</li>
         <li><b>설치.bat</b>을 더블클릭하고 엑셀 폴더, 현황판 주소, 동기화 키를 입력합니다.</li>
-        <li>그 뒤로는 폴더의 엑셀을 저장하기만 하면 됩니다. PC가 켜져 있는 동안 5분마다 확인합니다.</li>
+        <li>그 뒤로는 폴더의 엑셀을 저장하기만 하면 됩니다. PC가 켜져 있는 동안 위에서 정한 주기(기본 1시간)마다 확인합니다.</li>
       </ol>
       <p class="small muted">PC가 꺼져 있으면 그동안은 반영되지 않습니다. 그럴 때는 '엑셀 반영' 탭에서 직접 올려 주세요. 공고명이나 조직이 바뀐 파일은 자동 반영하지 않고 이 화면에서 확인을 기다립니다.</p>
     </div></div>`;

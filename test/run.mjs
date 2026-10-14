@@ -70,6 +70,6 @@ try {
   r = await upload("pc", "sample_ok.xlsx", { "x-sync-key": "test-sync-key-123", "x-file-modified": "2020-01-01T00:00:00Z" });
   assert.equal(r.body.status, "invalid"); ok("오래된 파일은 최신 데이터를 덮어쓰지 않음");
   const cfg = await call("pc", "/api/upload", { headers: { "x-sync-key": "test-sync-key-123" } });
-  assert.equal(cfg.body.intervalM, 5); ok("PC 프로그램이 확인 주기(5분)를 받아 감");
+  assert.equal(cfg.body.intervalM, 60); ok("PC 프로그램이 확인 주기(기본 1시간)를 받아 감");
   console.log("\n모든 시나리오 통과");
 } finally { srv.kill(); }
