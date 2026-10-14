@@ -8,7 +8,9 @@ const REPO="https://github.com/seonhye061vv/-";
 let me=null;        // {id, role}
 let B=null;         // 현황판 데이터 {meta, postings[]}
 let A=null;         // 관리자 전체 데이터
-let ui={tab:"board",q:"",org:"",stage:"",pending:null,linkTo:{},busy:false,loginErr:"",notice:"",error:"",issued:null,pwForm:false,pwErr:""};
+let ui={tab:"board",q:"",org:"",stage:"",pending:null,linkTo:{},busy:false,loginErr:"",notice:"",error:"",issued:null,issuedAll:[],pwForm:false,pwErr:"",showPw:false};
+// 브라우저에 저장한 로그인 이메일 (저장 안 되는 환경이면 무시)
+const remembered={get(){try{return localStorage.getItem("rb.email")||""}catch(e){return ""}},set(v){try{v?localStorage.setItem("rb.email",v):localStorage.removeItem("rb.email")}catch(e){}}};
 const isAdmin=()=>me&&me.role==="admin";
 // 관리자 화면으로 보는 중인지 (현업 화면 미리보기 탭이면 현업과 똑같이 보여 준다)
 const adminView=()=>isAdmin()&&ui.tab!=="preview";
@@ -60,6 +62,10 @@ function curPills(p){
   if(c.type==="allDone") return `<span class="pill allok">전체 단계 처리 완료</span>`;
   return `<span class="pill chk">현재 단계 확인 필요</span>`;
 }
+// 처리된 단계 수 (완료 + 해당사항 없음)
+const doneN=p=>p.statuses.filter(s=>s==="done"||s==="na").length;
+const progress=p=>`<span class="prog small"><b>${doneN(p)}</b>/${STAGES.length}단계 처리</span>`;
+const track=p=>`<div class="trk" role="img" aria-label="${esc(STAGES.map((s,i)=>`${i+1} ${s} ${LABEL[p.statuses[i]]||"아직"}`).join(", "))}">${p.statuses.map((st,i)=>`<span class="s-${st}" data-tip="${i+1}. ${STAGES[i]} · ${LABEL[st]||"아직"}"></span>`).join("")}</div>`;
 const stCell=k=>k==="empty"?"":`<span class="pill ${k}">${LABEL[k]}</span>`;
 
 /* ---------- 공통 ---------- */
@@ -122,13 +128,15 @@ function renderLogin(){
       <p class="small muted">HR 담당자가 등록한 이메일과 비밀번호로 로그인하세요.</p>
       <form id="loginForm" class="panel" style="gap:10px">
         <label for="accId" class="small">로그인 이메일 (관리자는 admin)</label>
-        <input type="text" id="accId" autocomplete="username" inputmode="email" required value="${esc(ui.loginId||"")}">
+        <input type="text" id="accId" autocomplete="username" inputmode="email" required value="${esc(ui.loginId||remembered.get())}">
         <label for="accPw" class="small">비밀번호</label>
-        <input type="password" id="accPw" autocomplete="current-password" required>
+        <div class="pw-wrap"><input type="${ui.showPw?"text":"password"}" id="accPw" autocomplete="current-password" required><button type="button" class="pw-eye" id="pwEye" aria-label="${ui.showPw?"비밀번호 숨기기":"비밀번호 보기"}" aria-pressed="${ui.showPw}">${ui.showPw?"숨기기":"보기"}</button></div>
+        <label class="row-flex small muted remember"><input type="checkbox" id="remember" ${(ui.remember??Boolean(remembered.get()))?"checked":""}> 이 브라우저에서 이메일 기억하기</label>
         ${ui.loginErr?`<div class="msg e small">${esc(ui.loginErr)}</div>`:""}
         <button class="btn primary" type="submit" ${ui.busy?"disabled":""}>로그인</button>
       </form>
       <p class="small muted">처음 로그인하면 임시 비밀번호를 본인 비밀번호로 바꾸는 화면이 나와요.</p>
+      <p class="small muted forgot">비밀번호를 잊으셨나요? HR 담당자에게 <b>임시 비밀번호 재발급</b>을 요청해 주세요.</p>
     </div>
   </div>`;
 }
@@ -166,8 +174,8 @@ function renderBoard(D=B){
   <section class="sum" aria-label="요약">
     <div class="kpi"><span class="small muted">${adminView()?"전체 공고":"열람 가능한 공고"}</span><span class="n">${all.length}</span><span class="small muted">건</span></div>
     <div class="sum-side">
-      <span class="small muted">현재 단계별 공고 수</span>
-      <div class="stagebar">${STAGES.map((s,i)=>`<div class="sb${counts[i]&&counts[i]===max?" peak":""}" title="${s} ${counts[i]}건"><span class="c ${counts[i]?"":"zero"}">${counts[i]}</span><div class="col"><div class="fill" style="height:${Math.max(counts[i]/max*100,counts[i]?8:0)}%;--i:${i}"></div></div><span class="i">${i+1}</span><span class="l">${s}</span></div>`).join("")}</div>
+      <span class="small muted">현재 단계별 공고 수 <span class="hint">· 막대를 누르면 그 단계 공고만 보여요${ui.stage?` <button type="button" class="linkish" id="stageClear">전체 보기</button>`:""}</span></span>
+      <div class="stagebar${ui.stage&&STAGES.includes(ui.stage)?" has-sel":""}">${STAGES.map((s,i)=>`<button type="button" class="sb${counts[i]&&counts[i]===max?" peak":""}${ui.stage===s?" sel":""}" data-stage-i="${i}" aria-pressed="${ui.stage===s}" title="${s} ${counts[i]}건 · 눌러서 이 단계 공고만 보기"><span class="c ${counts[i]?"":"zero"}">${counts[i]}</span><div class="col"><div class="fill" style="height:${Math.max(counts[i]/max*100,counts[i]?8:0)}%;--i:${i}"></div></div><span class="i">${i+1}</span><span class="l">${s}</span></button>`).join("")}</div>
       <span class="sum-note">${allDone?`전체 단계 처리 완료 ${allDone}건 · `:""}${chk?`현재 단계 확인 필요 ${chk}건 · `:""}${multi?`<b>${multi}건이 여러 단계를 동시에 진행 중이라 단계별 합계가 공고 수보다 클 수 있습니다.</b>`:"한 공고가 여러 단계를 동시에 진행하면 단계별 합계가 공고 수보다 클 수 있습니다."}</span>
     </div>
   </section>
@@ -184,12 +192,12 @@ function renderBoard(D=B){
   ${list.length?`
   <div class="tbl-main">
     <div class="tbl-wrap"><table>
-      <thead><tr><th>본부</th><th>부서</th><th>공고명</th><th>현재 단계</th>${STAGES.map((s,i)=>`<th class="stg"><span class="i">${i+1}</span>${s}</th>`).join("")}</tr></thead>
-      <tbody>${list.map(p=>`<tr class="row" data-id="${p.id}" tabindex="0"><td class="org">${esc(p.hq)}</td><td class="org">${esc(p.dept)}</td><td class="title">${esc(p.title)}${isAdmin()&&p.inLastFile===false?'<span class="tag">최근 파일에 없음</span>':""}${isAdmin()&&p.expired?'<span class="tag">표시 기간 지남</span>':""}</td><td>${curPills(p)}</td>${p.statuses.map(s=>`<td class="st">${stCell(s)}</td>`).join("")}</tr>`).join("")}</tbody>
+      <thead><tr><th>본부</th><th>부서</th><th>공고명</th><th>현재 단계</th><th class="prog-h">진행 상황 <span class="small muted">(1~9단계, 마우스를 올리면 단계 이름)</span></th></tr></thead>
+      <tbody>${list.map(p=>`<tr class="row" data-id="${p.id}" tabindex="0"><td class="org">${esc(p.hq)}</td><td class="org">${esc(p.dept)}</td><td class="title">${esc(p.title)}${isAdmin()&&p.inLastFile===false?'<span class="tag">최근 파일에 없음</span>':""}${isAdmin()&&p.expired?'<span class="tag">표시 기간 지남</span>':""}</td><td>${curPills(p)}</td><td class="prog-c">${track(p)}${progress(p)}</td></tr>`).join("")}</tbody>
     </table></div>
   </div>
-  <div class="cards">${list.map(p=>`<button class="card" data-id="${p.id}"><span class="small muted">${esc(p.hq)} · ${esc(p.dept)}</span><span class="t">${esc(p.title)}</span><span>${curPills(p)}</span><div class="track" aria-hidden="true">${p.statuses.map(s=>`<span class="s-${s}"></span>`).join("")}</div></button>`).join("")}</div>
-  <p class="note">※ 공란은 아직 해당 단계에 도달하지 않은 상태를 의미합니다.</p>`
+  <div class="cards">${list.map(p=>`<button class="card" data-id="${p.id}"><span class="small muted">${esc(p.hq)} · ${esc(p.dept)}</span><span class="t">${esc(p.title)}</span><span>${curPills(p)}</span>${track(p)}${progress(p)}</button>`).join("")}</div>
+  <p class="note legend"><span><i class="s-done"></i>완료</span><span><i class="s-ongoing"></i>진행 중</span><span><i class="s-na"></i>해당사항 없음</span><span><i class="s-empty"></i>아직 도달 전</span> · 공고를 누르면 단계별 상세가 나와요.</p>`
   :`<div class="empty">조건에 맞는 공고가 없습니다.</div>`}`;
 }
 
@@ -275,14 +283,28 @@ const people=()=>Object.keys(A.codes).sort((a,b)=>a.localeCompare(b,"ko"));
 const personLabel=c=>A.links[c]?`${c} (${A.links[c]})`:`${c} · 계정 미연결`;
 function renderPerm(){
   const ppl=people();
+  const toLink=ppl.filter(c=>!A.links[c]&&(A.suggest||{})[c]);
+  const toGrant=A.order.filter(id=>!A.postings[id].expired).reduce((n,id)=>n+(A.candidates[id]||[]).filter(c=>!(A.grants[c]||[]).includes(id)).length,0);
+  const iss=ui.issuedAll;
   return `<div class="panel">
+    <div class="box bulk"><h2>한 번에 처리하기</h2>
+      <p class="small muted">명단을 올린 뒤 아래 두 버튼을 차례로 누르면 대부분의 설정이 끝나요. 예외만 아래 표에서 한 명씩 고치면 됩니다.</p>
+      <div class="bulk-steps">
+        <div class="bulk-step"><span class="num">1</span><div><b>명단 이메일로 모두 연결</b><span class="small muted">아직 연결 안 된 대상자 ${toLink.length}명. 연결하면 임시 비밀번호가 만들어져요.</span></div><button class="btn primary sm" id="linkAll" ${toLink.length?"":"disabled"}>${toLink.length}명 연결</button></div>
+        <div class="bulk-step"><span class="num">2</span><div><b>같은 부서 후보 모두 승인</b><span class="small muted">본부·부서가 맞는 후보 중 아직 승인 안 된 ${toGrant}건 (표시 기간 지난 완료 공고 제외)</span></div><button class="btn primary sm" id="grantAll" ${toGrant?"":"disabled"}>${toGrant}건 승인</button></div>
+      </div>
+      ${ui.bulkMsg?`<div class="msg small">${ui.bulkMsg}</div>`:""}
+      ${ui.bulkSkip&&ui.bulkSkip.length?`<div class="small" style="color:var(--warn)">연결하지 못한 대상자 ${ui.bulkSkip.length}명: ${ui.bulkSkip.map(esc).join(" / ")}</div>`:""}
+      ${iss.length?`<div class="banner ex"><span><b>이번에 발급한 임시 비밀번호 ${iss.length}건</b> · 이 화면을 벗어나면 다시 볼 수 없어요. 엑셀로 내려받아 본인에게 전달하세요.<br>
+        <button class="btn sm primary" id="dlTemp">엑셀로 내려받기</button> <button class="btn sm" id="clearTemp">목록 지우기</button></span></div>`:""}
+    </div>
     <div class="banner info"><span>권한은 엑셀에서 자동으로 주지 않습니다. ① 오른쪽에서 대상자마다 로그인 이메일을 연결하고 ② 공고마다 대상자를 골라 승인해야 현업이 볼 수 있습니다. 재무기획부는 경영기획본부, 계약관리부는 손님지원본부 소속으로 맞춰 후보를 찾습니다.</span></div>
     <div class="grid2">
     <div class="box"><h2>공고별 열람 권한</h2>
       ${A.order.length?A.order.map(id=>{const p=A.postings[id];const cands=A.candidates[id]||[];const granted=Object.keys(A.grants).filter(c=>(A.grants[c]||[]).includes(id));
         const candLeft=cands.filter(c=>!granted.includes(c)), others=ppl.filter(c=>!cands.includes(c)&&!granted.includes(c));
         return `<div style="display:flex;flex-direction:column;gap:6px;padding-bottom:10px;border-bottom:1px solid var(--line)">
-        <div><b>${esc(p.title)}</b> <span class="small muted">${esc(p.hq)} / ${esc(p.dept)}</span></div>
+        <div class="row-flex" style="justify-content:space-between"><div><b>${esc(p.title)}</b> <span class="small muted">${esc(p.hq)} / ${esc(p.dept)}</span></div>${candLeft.length?`<button class="btn sm" data-grant-all="${id}">후보 ${candLeft.length}명 모두 승인</button>`:""}</div>
         ${cands.length?`<span class="small muted">후보(같은 본부·부서): ${cands.map(esc).join(", ")}</span>`:`<span class="small" style="color:var(--warn)">관리자 확인 필요: 권한 시트에 같은 본부·부서 기록이 없습니다.</span>`}
         <div class="codes">${granted.map(c=>`<span class="code granted"><b>${esc(c)}</b><span class="small muted">${A.links[c]?esc(A.links[c]):"계정 미연결"}</span><span class="small">승인됨</span><button class="btn sm" data-revoke="${esc(c)}" data-id="${id}">회수</button></span>`).join("")}</div>
         <div class="row-flex"><select id="sel-${id}" aria-label="열람 대상자 선택" style="flex:1 1 200px">
@@ -375,6 +397,17 @@ function draw(){
   if($("#dlg").open&&!shown.postings.some(p=>p.id===$("#dlg").dataset.id)) $("#dlg").close();
 }
 
+// 임시 비밀번호 목록을 엑셀로 (서버가 파일만 만들어 주고 저장하지 않음)
+async function downloadTemps(){
+  try{
+    const r=await fetch("/api/admin",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"tempXlsx",rows:ui.issuedAll})});
+    if(!r.ok){let m="파일을 만들지 못했습니다.";try{m=(await r.json()).error||m}catch(e){}throw new Error(m)}
+    const url=URL.createObjectURL(await r.blob());const a=document.createElement("a");
+    const d=new Date();a.href=url;a.download=`temp-passwords_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}.xlsx`;
+    document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }catch(e){ui.error=e.message;render()}
+}
+
 /* ---------- 이벤트 ---------- */
 document.addEventListener("click",e=>{
   const t=e.target.closest("button,tr.row");
@@ -382,16 +415,27 @@ document.addEventListener("click",e=>{
   if(t.dataset.tab){ui.tab=t.dataset.tab;ui.error="";ui.notice="";if(ui.tab==="preview"){ui.pv=null;render();act(load)}else render();return}
   if(t.dataset.id&&(t.matches("tr.row")||t.classList.contains("card"))){openDetail(t.dataset.id);return}
   if(t.id==="dlgClose"){$("#dlg").close();return}
-  if(t.id==="logout"){act(async()=>{await post("/api/logout",{});me=null;B=null;A=null;ui.tab="board";ui.issued=null;ui.pwForm=false});return}
+  if(t.dataset.stageI!==undefined){const s=STAGES[+t.dataset.stageI];ui.stage=ui.stage===s?"":s;render();return}
+  if(t.id==="stageClear"){ui.stage="";render();return}
+  if(t.id==="pwEye"){const v=$("#accPw").value,id=$("#accId").value;ui.remember=$("#remember").checked;ui.showPw=!ui.showPw;ui.loginId=id;render();const pw=$("#accPw");pw.value=v;pw.focus();return}
+  if(t.id==="linkAll"){const n=people().filter(c=>!A.links[c]&&(A.suggest||{})[c]).length;
+    if(!confirm(`명단의 이메일로 ${n}명을 연결하고 임시 비밀번호를 만들까요?`))return;
+    act(async()=>{const r=await post("/api/admin",{action:"linkAll"});const b=r.bulk;ui.issuedAll=ui.issuedAll.concat(b.issued);ui.bulkSkip=b.skipped;ui.bulkMsg=`${b.linked}명을 연결했고 임시 비밀번호 ${b.issued.length}건을 만들었어요.`;await load()});return}
+  if(t.id==="grantAll"||t.dataset.grantAll){const one=t.dataset.grantAll;
+    if(!one&&!confirm("본부·부서가 맞는 후보를 모든 공고에 승인할까요? 승인한 뒤에도 공고별로 회수할 수 있어요."))return;
+    act(async()=>{const r=await post("/api/admin",{action:"grantAll",id:one||undefined});ui.bulkSkip=null;ui.bulkMsg=`${r.bulk.granted}건을 승인했어요.`;await load()});return}
+  if(t.id==="dlTemp"){downloadTemps();return}
+  if(t.id==="clearTemp"){if(confirm("임시 비밀번호 목록을 지울까요? 지우면 다시 볼 수 없어요.")){ui.issuedAll=[];render()}return}
+  if(t.id==="logout"){act(async()=>{await post("/api/logout",{});me=null;B=null;A=null;ui.tab="board";ui.issued=null;ui.issuedAll=[];ui.bulkMsg="";ui.bulkSkip=null;ui.pwForm=false});return}
   if(t.dataset.grant){act(async()=>{A=await post("/api/admin",{action:"grant",code:t.dataset.grant,id:t.dataset.id});await load()});return}
   if(t.dataset.revoke){act(async()=>{A=await post("/api/admin",{action:"revoke",code:t.dataset.revoke,id:t.dataset.id});await load()});return}
   if(t.dataset.add){const c=document.getElementById("sel-"+t.dataset.add).value;if(!c){ui.error="승인할 대상자를 골라 주세요.";render();return}act(async()=>{await post("/api/admin",{action:"grant",code:c,id:t.dataset.add});await load()});return}
   if(t.dataset.linkI!==undefined){const c=people()[+t.dataset.linkI];const acc=document.getElementById("lk-"+t.dataset.linkI).value.trim().toLowerCase();
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(acc)){ui.error="로그인 이메일을 정확히 입력해 주세요.";render();return}
-    act(async()=>{const r=await post("/api/admin",{action:"link",code:c,account:acc});ui.issued=r.issued||null;await load();ui.notice=`${c} 님의 로그인 계정을 ${acc}(으)로 저장했습니다.`});return}
+    act(async()=>{const r=await post("/api/admin",{action:"link",code:c,account:acc});ui.issued=r.issued||null;if(r.issued)ui.issuedAll=ui.issuedAll.concat(r.issued);await load();ui.notice=`${c} 님의 로그인 계정을 ${acc}(으)로 저장했습니다.`});return}
   if(t.dataset.reissueI!==undefined){const c=people()[+t.dataset.reissueI];const acc=A.links[c];
     if(!confirm(`${c} 님(${acc})의 비밀번호를 새 임시 비밀번호로 바꿀까요? 지금 비밀번호는 더 이상 쓸 수 없습니다.`))return;
-    act(async()=>{const r=await post("/api/admin",{action:"password",account:acc});ui.issued=r.issued||null;await load()});return}
+    act(async()=>{const r=await post("/api/admin",{action:"password",account:acc});ui.issued=r.issued||null;if(r.issued)ui.issuedAll=ui.issuedAll.concat(r.issued);await load()});return}
   if(t.id==="copyTemp"){navigator.clipboard&&navigator.clipboard.writeText(ui.issued.temp).then(()=>{t.textContent="복사됨"},()=>{});return}
   if(t.id==="hideTemp"){ui.issued=null;render();return}
   if(t.id==="pwOpen"){ui.pwForm=true;ui.pwErr="";render();return}
@@ -432,7 +476,7 @@ document.addEventListener("submit",e=>{
   if(e.target.id!=="loginForm")return; e.preventDefault();
   const id=$("#accId").value.trim(), password=$("#accPw").value; ui.loginId=id;
   act(async()=>{
-    try{const r=await post("/api/login",{id,password});me=r.user;ui.loginErr="";ui.tab="board";await load()}
+    try{const r=await post("/api/login",{id,password});me=r.user;ui.loginErr="";ui.showPw=false;remembered.set($("#remember")&&$("#remember").checked?id:"");ui.tab="board";await load()}
     catch(err){ui.loginErr=err.message}
   });
 });

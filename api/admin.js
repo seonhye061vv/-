@@ -3,6 +3,9 @@ import { handler, send, jsonBody, fail } from "../lib/http.js";
 import { getSession, hashPassword, tempPassword } from "../lib/auth.js";
 import { loadState, saveState, loadPending, candidatesFor, normOrg, audit, INTERVALS, DONE_DAYS, expired, withLock } from "../lib/core.js";
 import { summarize } from "./upload.js";
+import ExcelJS from "exceljs";
+
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function view(s, pending) {
   const codes = {};
@@ -25,10 +28,11 @@ export default handler(async (req, res) => {
   if (req.method === "GET") return send(res, 200, view(await loadState(), await loadPending()));
   if (req.method !== "POST") throw fail(405, "허용되지 않는 요청입니다.");
   const b = await jsonBody(req);
-  let issued = null;
-  const s = await withLock(async () => { const s = await loadState(); issued = change(s, b); await saveState(s); return s; });
+  if (b.action === "tempXlsx") return tempXlsx(res, b.rows);
+  let r = null;
+  const s = await withLock(async () => { const s = await loadState(); r = change(s, b); await saveState(s); return s; });
   // 임시 비밀번호는 이 응답에서 한 번만 보여 준다 (서버에는 해시만 저장)
-  send(res, 200, { ...view(s, await loadPending()), issued: issued || null });
+  send(res, 200, { ...view(s, await loadPending()), issued: r?.temp ? r : null, bulk: r?.bulk || null });
 });
 
 function change(s, b) {
@@ -37,7 +41,7 @@ function change(s, b) {
     case "link": {
       const acc = String(b.account || "").trim().toLowerCase();
       if (!code) throw fail(400, "대상자를 골라 주세요.");
-      if (acc && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(acc)) throw fail(400, "로그인 계정은 이메일 형식으로 입력해 주세요.");
+      if (acc && !EMAIL.test(acc)) throw fail(400, "로그인 계정은 이메일 형식으로 입력해 주세요.");
       const owner = Object.keys(s.links).find((c) => s.links[c] === acc && c !== code);
       if (acc && owner && !b.shareAccount) throw fail(400, `${acc}은(는) 이미 '${owner}'에 연결된 이메일입니다.`);
       if (!acc) { const before = s.links[code]; delete s.links[code]; audit(s, "HR 관리자", null, code, `계정 연결 해제: ${before || "없음"}`); break; }
@@ -48,6 +52,35 @@ function change(s, b) {
       const before = s.links[code]; s.links[code] = acc;
       audit(s, "HR 관리자", null, code, `계정 연결: ${before || "없음"} → ${acc}`);
       return issued;
+    }
+    // 명단의 이메일로 아직 연결되지 않은 대상자를 한 번에 연결
+    case "linkAll": {
+      const sug = Object.assign({}, ...s.candidates.map((c) => c.emails || {}));
+      const issued = [], skipped = []; let linked = 0;
+      for (const [name, raw] of Object.entries(sug)) {
+        if (s.links[name]) continue;
+        const acc = String(raw || "").trim().toLowerCase();
+        if (!EMAIL.test(acc)) { skipped.push(`${name}: 이메일 형식이 아님`); continue; }
+        const owner = Object.keys(s.links).find((c) => s.links[c] === acc);
+        if (owner) { skipped.push(`${name}: ${acc}은(는) 이미 '${owner}'에 연결됨`); continue; }
+        if (!s.accounts[acc]) { const temp = tempPassword(); s.accounts[acc] = { ...hashPassword(temp), mustChange: true }; issued.push({ name, account: acc, temp }); }
+        s.links[name] = acc; linked++;
+        audit(s, "HR 관리자", null, name, `계정 연결(일괄): 없음 → ${acc}`);
+      }
+      return { bulk: { kind: "linkAll", linked, skipped, issued } };
+    }
+    // 같은 본부·부서 후보를 공고에 한 번에 승인 (id가 있으면 그 공고만)
+    case "grantAll": {
+      const ids = b.id ? [b.id] : s.order.filter((id) => !expired(s, s.postings[id]));
+      if (b.id && !s.postings[b.id]) throw fail(400, "공고를 확인해 주세요.");
+      let granted = 0;
+      for (const id of ids) for (const c of candidatesFor(s, s.postings[id])) {
+        const list = new Set(s.grants[c] || []);
+        if (list.has(id)) continue;
+        list.add(id); s.grants[c] = [...list]; granted++;
+        audit(s, "HR 관리자", id, c, "열람 권한 부여(일괄)");
+      }
+      return { bulk: { kind: "grantAll", granted } };
     }
     case "password": {
       const acc = String(b.account || "").trim().toLowerCase();
@@ -78,4 +111,19 @@ function change(s, b) {
     }
     default: throw fail(400, "알 수 없는 요청입니다.");
   }
+}
+
+// 이번에 발급한 임시 비밀번호 목록을 엑셀 파일로 돌려준다 (서버에 저장하지 않음)
+async function tempXlsx(res, rows) {
+  if (!Array.isArray(rows) || !rows.length || rows.length > 500) throw fail(400, "내려받을 임시 비밀번호가 없습니다.");
+  const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet("임시 비밀번호");
+  ws.columns = [{ header: "대상자", key: "name", width: 22 }, { header: "로그인 이메일", key: "account", width: 34 }, { header: "임시 비밀번호", key: "temp", width: 22 }, { header: "안내", key: "note", width: 50 }];
+  rows.forEach((r) => ws.addRow({ name: String(r.name || ""), account: String(r.account || ""), temp: String(r.temp || ""), note: "첫 로그인 때 본인 비밀번호(8자 이상)로 바꿔야 합니다." }));
+  ws.getRow(1).font = { bold: true };
+  const buf = await wb.xlsx.writeBuffer();
+  res.statusCode = 200;
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition", "attachment; filename=temp-passwords.xlsx");
+  res.setHeader("Cache-Control", "no-store");
+  res.end(Buffer.from(buf));
 }

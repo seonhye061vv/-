@@ -98,6 +98,21 @@ try {
   ok("명단 파일만 올리면 후보·추천 이메일만 바뀌고 기존 계정 연결은 유지");
   const np = (await call("admin", "/api/upload", { method: "POST", headers: { "content-type": "application/octet-stream", "x-kind": "perm" }, body: fs.readFileSync(dir + "sample_ok.xlsx") })).body.perm;
   assert.equal(np.errs.length, 0); ok("예전 양식(이름만, C~F열) 권한 시트도 읽음");
+  // 한 번에 처리하기: 명단 이메일로 모두 연결 → 후보 모두 승인 → 임시 비밀번호 엑셀
+  await call("admin", "/api/upload", { method: "POST", headers: { "content-type": "application/octet-stream", "x-kind": "perm", "x-file-name": "perm.xlsx" }, body: fs.readFileSync(dir + "sample_perm.xlsx") });
+  let before = (await call("admin", "/api/admin")).body;
+  const waiting = Object.keys(before.suggest).filter((c) => !before.links[c]);
+  const la = (await post("admin", "/api/admin", { action: "linkAll" })).body;
+  assert.ok(la.bulk.linked > 0 && la.bulk.linked + la.bulk.skipped.length === waiting.length);
+  assert.ok(la.bulk.issued.every((x) => x.temp.length >= 10 && la.accounts[x.account].mustChange));
+  assert.equal((await post("admin", "/api/admin", { action: "linkAll" })).body.bulk.linked, 0); ok(`명단 이메일로 일괄 연결 ${la.bulk.linked}명, 다시 눌러도 중복 없음`);
+  const ga = (await post("admin", "/api/admin", { action: "grantAll" })).body;
+  assert.ok(ga.bulk.granted > 0);
+  for (const id of ga.order) if (!ga.postings[id].expired) for (const c of ga.candidates[id]) assert.ok((ga.grants[c] || []).includes(id));
+  assert.equal((await post("admin", "/api/admin", { action: "grantAll" })).body.bulk.granted, 0); ok(`같은 부서 후보 일괄 승인 ${ga.bulk.granted}건`);
+  const x = await call("admin", "/api/admin", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "tempXlsx", rows: la.bulk.issued }) });
+  assert.equal(x.status, 200);
+  assert.equal((await post("kim", "/api/admin", { action: "linkAll" })).status, 403); ok("임시 비밀번호 엑셀 내려받기, 현업은 일괄 기능 사용 불가");
   // 완료 공고 표시 기간
   const r1 = await post("admin", "/api/admin", { action: "link", code: "S", account: "not-an-email" });
   assert.equal(r1.status, 400); ok("로그인 계정은 이메일 형식만 허용");
