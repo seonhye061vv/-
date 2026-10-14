@@ -92,10 +92,10 @@ function renderTabs(){
 function renderLogin(){
   return `<div class="box" style="max-width:420px;margin:24px auto;width:100%">
     <h2>로그인</h2>
-    <p class="small muted">현업 담당자는 HR 담당자에게 받은 계정으로 로그인하면, 열람 권한을 받은 공고만 볼 수 있습니다.</p>
+    <p class="small muted">현업 담당자는 HR 담당자가 등록한 이메일과 비밀번호로 로그인하면, 열람 권한을 받은 공고만 볼 수 있습니다.</p>
     <form id="loginForm" class="panel" style="gap:10px">
-      <label for="accId" class="small">계정 ID</label>
-      <input type="text" id="accId" autocomplete="username" required value="${esc(ui.loginId||"")}">
+      <label for="accId" class="small">로그인 이메일 (관리자는 admin)</label>
+      <input type="text" id="accId" autocomplete="username" inputmode="email" required value="${esc(ui.loginId||"")}">
       <label for="accPw" class="small">비밀번호</label>
       <input type="password" id="accPw" autocomplete="current-password" required style="border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:6px 10px">
       ${ui.loginErr?`<div class="msg e small">${esc(ui.loginErr)}</div>`:""}
@@ -106,8 +106,10 @@ function renderLogin(){
 
 /* ---------- 현황판 ---------- */
 function renderBoard(){
-  const all=B?B.postings:[];
-  if(!all.length) return `<div class="empty">${isAdmin()?"등록된 공고가 없습니다. 엑셀 반영 탭에서 파일을 올리거나 PC 자동 동기화를 연결해 주세요.":"열람 가능한 공고가 없습니다."}</div>`;
+  const every=B?B.postings:[];
+  const hiddenN=every.filter(p=>p.expired).length;
+  const all=isAdmin()&&!ui.showExpired?every.filter(p=>!p.expired):every;
+  if(!every.length) return `<div class="empty">${isAdmin()?"등록된 공고가 없습니다. 엑셀 반영 탭에서 파일을 올리거나 PC 자동 동기화를 연결해 주세요.":"열람 가능한 공고가 없습니다."}</div>`;
   const orgs=[...new Set(all.map(p=>p.hq+" / "+p.dept))];
   const q=ui.q.trim();
   const list=all.filter(p=>(!q||p.title.includes(q))&&(!ui.org||p.hq+" / "+p.dept===ui.org)&&(!ui.stage||curLabel(p).split(", ").includes(ui.stage)));
@@ -131,11 +133,15 @@ function renderBoard(){
     <select id="fStage" aria-label="현재 단계"><option value="">현재 단계 전체</option>${stageOpts.map(o=>`<option ${o===ui.stage?"selected":""}>${o}</option>`).join("")}</select>
     <span class="small muted">${list.length}건</span>
   </div>
+  ${isAdmin()?`<div class="row-flex small"><label for="doneDays" class="muted">완료 공고 표시</label>
+    <select id="doneDays">${(A.doneDaysOptions||[0,7,14,30,60,90]).map(d=>`<option value="${d}" ${d==(B.meta.doneDays||0)?"selected":""}>${d?`완료 후 ${d}일까지`:"계속 표시"}</option>`).join("")}</select>
+    <span class="muted">모든 단계가 완료·해당사항 없음이 된 공고에 적용됩니다. 기간이 지나면 현업 화면에서 사라지고, 관리자는 아래에서 다시 볼 수 있습니다.</span>
+    ${hiddenN?`<label class="row-flex"><input type="checkbox" id="showExpired" ${ui.showExpired?"checked":""}> 기간 지난 완료 공고 ${hiddenN}건 보기</label>`:""}</div>`:""}
   ${list.length?`
   <div class="tbl-main">
     <div class="tbl-wrap"><table>
       <thead><tr><th>본부</th><th>부서</th><th>공고명</th><th>현재 단계</th>${STAGES.map((s,i)=>`<th class="stg"><span class="i">${i+1}</span>${s}</th>`).join("")}</tr></thead>
-      <tbody>${list.map(p=>`<tr class="row" data-id="${p.id}" tabindex="0"><td class="org">${esc(p.hq)}</td><td class="org">${esc(p.dept)}</td><td class="title">${esc(p.title)}${isAdmin()&&p.inLastFile===false?'<span class="tag">최근 파일에 없음</span>':""}</td><td>${curPills(p)}</td>${p.statuses.map(s=>`<td class="st">${stCell(s)}</td>`).join("")}</tr>`).join("")}</tbody>
+      <tbody>${list.map(p=>`<tr class="row" data-id="${p.id}" tabindex="0"><td class="org">${esc(p.hq)}</td><td class="org">${esc(p.dept)}</td><td class="title">${esc(p.title)}${isAdmin()&&p.inLastFile===false?'<span class="tag">최근 파일에 없음</span>':""}${isAdmin()&&p.expired?'<span class="tag">표시 기간 지남</span>':""}</td><td>${curPills(p)}</td>${p.statuses.map(s=>`<td class="st">${stCell(s)}</td>`).join("")}</tr>`).join("")}</tbody>
     </table></div>
   </div>
   <div class="cards">${list.map(p=>`<button class="card" data-id="${p.id}"><span class="small muted">${esc(p.hq)} · ${esc(p.dept)}</span><span class="t">${esc(p.title)}</span><span>${curPills(p)}</span><div class="track" aria-hidden="true">${p.statuses.map(s=>`<span class="s-${s}"></span>`).join("")}</div></button>`).join("")}</div>
@@ -204,30 +210,38 @@ async function handleFile(file){
 }
 
 /* ---------- 관리자: 열람 권한 ---------- */
+// 대상자 = 권한부여대상자 시트 C~F열에 적힌 이름
+const people=()=>Object.keys(A.codes).sort((a,b)=>a.localeCompare(b,"ko"));
+const personLabel=c=>A.links[c]?`${c} (${A.links[c]})`:`${c} · 계정 미연결`;
 function renderPerm(){
-  const codes=Object.entries(A.codes);
+  const ppl=people();
   return `<div class="panel">
-    <div class="banner info"><span>권한은 엑셀에서 자동으로 주지 않습니다. ① 대상자 코드에 현업 계정을 만들어 연결하고 ② 공고별로 승인해야 현업이 볼 수 있습니다. 재무기획부는 경영기획본부, 계약관리부는 손님지원본부 소속으로 맞춰 후보를 찾습니다.</span></div>
+    <div class="banner info"><span>권한은 엑셀에서 자동으로 주지 않습니다. ① 오른쪽에서 대상자마다 로그인 이메일과 비밀번호를 정하고 ② 공고마다 대상자를 골라 승인해야 현업이 볼 수 있습니다. 재무기획부는 경영기획본부, 계약관리부는 손님지원본부 소속으로 맞춰 후보를 찾습니다.</span></div>
     <div class="grid2">
     <div class="box"><h2>공고별 열람 권한</h2>
-      ${A.order.length?A.order.map(id=>{const p=A.postings[id];const cands=A.candidates[id]||[];const granted=Object.keys(A.grants).filter(c=>(A.grants[c]||[]).includes(id));const show=[...new Set([...cands,...granted])];
+      ${A.order.length?A.order.map(id=>{const p=A.postings[id];const cands=A.candidates[id]||[];const granted=Object.keys(A.grants).filter(c=>(A.grants[c]||[]).includes(id));
+        const candLeft=cands.filter(c=>!granted.includes(c)), others=ppl.filter(c=>!cands.includes(c)&&!granted.includes(c));
         return `<div style="display:flex;flex-direction:column;gap:6px;padding-bottom:10px;border-bottom:1px solid var(--line)">
         <div><b>${esc(p.title)}</b> <span class="small muted">${esc(p.hq)} / ${esc(p.dept)}</span></div>
-        ${cands.length?"":`<span class="small" style="color:var(--warn)">관리자 확인 필요: 권한 시트에 같은 본부·부서 기록이 없습니다.</span>`}
-        <div class="codes">${show.map(c=>{const g=granted.includes(c);return `<span class="code ${g?"granted":""}"><span class="mono">${esc(c)}</span><span class="small muted">${A.links[c]?esc(A.links[c]):"계정 미연결"}</span>${g?`<span class="small">승인됨</span><button class="btn sm" data-revoke="${esc(c)}" data-id="${id}">회수</button>`:`<span class="small muted">후보</span><button class="btn sm" data-grant="${esc(c)}" data-id="${id}">승인</button>`}</span>`}).join("")}
-          <span class="row-flex"><input type="text" placeholder="코드" aria-label="코드 직접 추가" style="width:70px" id="add-${id}"><button class="btn sm" data-add="${id}">직접 부여</button></span></div></div>`}).join(""):`<p class="small muted">공고가 없습니다.</p>`}
+        ${cands.length?`<span class="small muted">후보(같은 본부·부서): ${cands.map(esc).join(", ")}</span>`:`<span class="small" style="color:var(--warn)">관리자 확인 필요: 권한 시트에 같은 본부·부서 기록이 없습니다.</span>`}
+        <div class="codes">${granted.map(c=>`<span class="code granted"><b>${esc(c)}</b><span class="small muted">${A.links[c]?esc(A.links[c]):"계정 미연결"}</span><span class="small">승인됨</span><button class="btn sm" data-revoke="${esc(c)}" data-id="${id}">회수</button></span>`).join("")}</div>
+        <div class="row-flex"><select id="sel-${id}" aria-label="열람 대상자 선택" style="flex:1 1 200px">
+          <option value="">대상자 선택</option>
+          ${candLeft.length?`<optgroup label="후보">${candLeft.map(c=>`<option value="${esc(c)}">${esc(personLabel(c))}</option>`).join("")}</optgroup>`:""}
+          ${others.length?`<optgroup label="그 외 대상자">${others.map(c=>`<option value="${esc(c)}">${esc(personLabel(c))}</option>`).join("")}</optgroup>`:""}
+        </select><button class="btn sm primary" data-add="${id}">승인</button></div></div>`}).join(""):`<p class="small muted">공고가 없습니다.</p>`}
     </div>
     <div class="panel">
-      <div class="box"><h2>대상자 코드 · 현업 계정</h2>
-        <p class="small muted">코드는 로그인 정보가 아닙니다. 코드마다 현업 담당자의 계정 ID와 첫 비밀번호(8자 이상)를 정해 연결하고, 그 정보를 담당자에게 전달하세요. 연결 전에는 승인해도 볼 수 없습니다.</p>
-        <div class="tbl-wrap"><table><thead><tr><th>코드</th><th>권한 시트 조직</th><th>현업 계정</th></tr></thead><tbody>
-        ${codes.map(([c,orgs])=>{const acc=A.links[c]||"";return `<tr><td class="mono">${esc(c)}</td><td class="small">${orgs.map(esc).join("<br>")}</td><td><div class="row-flex">
-          <input type="text" id="lk-${esc(c)}" value="${esc(acc)}" placeholder="계정 ID" style="width:110px" autocomplete="off">
-          <input type="password" id="pw-${esc(c)}" placeholder="${acc?"비밀번호 변경 시":"첫 비밀번호"}" style="width:120px;border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:6px 10px" autocomplete="new-password">
-          <button class="btn sm" data-link-code="${esc(c)}">${acc?"저장":"연결"}</button>${acc?`<button class="btn sm" data-unlink="${esc(c)}">해제</button>`:""}</div></td></tr>`}).join("")||`<tr><td colspan="3" class="small muted">엑셀을 반영하면 권한 시트의 코드가 여기에 나옵니다.</td></tr>`}
+      <div class="box"><h2>대상자 · 로그인 계정</h2>
+        <p class="small muted">대상자마다 로그인에 쓸 이메일과 첫 비밀번호(8자 이상)를 정해 연결하고, 그 정보를 본인에게 전달하세요. 현업은 이 이메일과 비밀번호로 로그인합니다. 연결 전에는 승인해도 볼 수 없습니다.</p>
+        <div class="tbl-wrap"><table><thead><tr><th>대상자</th><th>권한 시트 조직</th><th>로그인 이메일 · 비밀번호</th></tr></thead><tbody>
+        ${ppl.map((c,i)=>{const acc=A.links[c]||"";return `<tr><td style="white-space:nowrap"><b>${esc(c)}</b></td><td class="small">${A.codes[c].map(esc).join("<br>")}</td><td><div class="row-flex">
+          <input type="email" id="lk-${i}" value="${esc(acc)}" placeholder="name@hanafn.com" style="width:180px;border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:6px 10px" autocomplete="off">
+          <input type="password" id="pw-${i}" placeholder="${acc?"비밀번호 변경 시":"첫 비밀번호"}" style="width:130px;border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:6px 10px" autocomplete="new-password">
+          <button class="btn sm" data-link-i="${i}">${acc?"저장":"연결"}</button>${acc?`<button class="btn sm" data-unlink-i="${i}">해제</button>`:""}</div></td></tr>`}).join("")||`<tr><td colspan="3" class="small muted">엑셀을 반영하면 권한부여대상자 시트의 이름이 여기에 나옵니다.</td></tr>`}
         </tbody></table></div></div>
       <div class="box"><h2>권한 변경 이력</h2>
-        ${A.audit.length?`<div class="tbl-wrap"><table><thead><tr><th>시각</th><th>실행자</th><th>공고</th><th>대상</th><th>변경</th></tr></thead><tbody>${A.audit.slice(0,50).map(a=>`<tr><td class="small">${fmt(a.at)}</td><td class="small">${esc(a.actor)}</td><td class="small">${esc(a.title||"-")}</td><td class="small">${esc(a.code)} · ${esc(a.account)}</td><td class="small">${esc(a.change)}</td></tr>`).join("")}</tbody></table></div>`:`<p class="small muted">아직 기록이 없습니다.</p>`}
+        ${A.audit.length?`<div class="tbl-wrap"><table><thead><tr><th>시각</th><th>실행자</th><th>공고</th><th>대상자</th><th>변경</th></tr></thead><tbody>${A.audit.slice(0,50).map(a=>`<tr><td class="small">${fmt(a.at)}</td><td class="small">${esc(a.actor)}</td><td class="small">${esc(a.title||"-")}</td><td class="small">${esc(a.code)} · ${esc(a.account)}</td><td class="small">${esc(a.change)}</td></tr>`).join("")}</tbody></table></div>`:`<p class="small muted">아직 기록이 없습니다.</p>`}
       </div>
     </div></div></div>`;
 }
@@ -289,11 +303,11 @@ document.addEventListener("click",e=>{
   if(t.id==="logout"){act(async()=>{await post("/api/logout",{});me=null;B=null;A=null;ui.tab="board"});return}
   if(t.dataset.grant){act(async()=>{A=await post("/api/admin",{action:"grant",code:t.dataset.grant,id:t.dataset.id});await load()});return}
   if(t.dataset.revoke){act(async()=>{A=await post("/api/admin",{action:"revoke",code:t.dataset.revoke,id:t.dataset.id});await load()});return}
-  if(t.dataset.add){const c=$("#add-"+t.dataset.add).value.trim();if(c)act(async()=>{await post("/api/admin",{action:"grant",code:c,id:t.dataset.add});await load()});return}
-  if(t.dataset.linkCode!==undefined){const c=t.dataset.linkCode;const acc=document.getElementById("lk-"+c).value.trim();const pw=document.getElementById("pw-"+c).value;
-    if(!acc){ui.error="계정 ID를 입력해 주세요.";render();return}
-    act(async()=>{await post("/api/admin",{action:"link",code:c,account:acc,password:pw||undefined});await load();ui.notice=`코드 ${c}에 계정 ${acc}을(를) 연결했습니다.${pw?" 정한 비밀번호를 담당자에게 전달해 주세요.":""}`});return}
-  if(t.dataset.unlink){act(async()=>{await post("/api/admin",{action:"link",code:t.dataset.unlink,account:""});await load()});return}
+  if(t.dataset.add){const c=document.getElementById("sel-"+t.dataset.add).value;if(!c){ui.error="승인할 대상자를 골라 주세요.";render();return}act(async()=>{await post("/api/admin",{action:"grant",code:c,id:t.dataset.add});await load()});return}
+  if(t.dataset.linkI!==undefined){const c=people()[+t.dataset.linkI];const acc=document.getElementById("lk-"+t.dataset.linkI).value.trim().toLowerCase();const pw=document.getElementById("pw-"+t.dataset.linkI).value;
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(acc)){ui.error="로그인 이메일을 정확히 입력해 주세요.";render();return}
+    act(async()=>{await post("/api/admin",{action:"link",code:c,account:acc,password:pw||undefined});await load();ui.notice=`${c} 님의 로그인 계정을 ${acc}(으)로 저장했습니다.${pw?" 정한 비밀번호를 본인에게 전달해 주세요.":""}`});return}
+  if(t.dataset.unlinkI!==undefined){const c=people()[+t.dataset.unlinkI];act(async()=>{await post("/api/admin",{action:"link",code:c,account:""});await load()});return}
   if(t.id==="pApply"){act(async()=>{const r=await post("/api/apply",{pendingId:ui.pending.id,linkTo:ui.linkTo});ui.pending=null;ui.linkTo={};await load();ui.tab="board";ui.notice=`반영했습니다. 변경 ${r.changed}건.`});return}
   if(t.id==="pDiscard"){act(async()=>{await post("/api/apply",{pendingId:ui.pending.id,discard:true});ui.pending=null;await load()});return}
   if(t.id==="pClose"){ui.pending=null;render();return}
@@ -306,6 +320,8 @@ document.addEventListener("change",e=>{
   const t=e.target;
   if(t.id==="fOrg"){ui.org=t.value;render();return}
   if(t.id==="fStage"){ui.stage=t.value;render();return}
+  if(t.id==="doneDays"){act(async()=>{A=await post("/api/admin",{action:"doneDays",days:Number(t.value)});await load()});return}
+  if(t.id==="showExpired"){ui.showExpired=t.checked;render();return}
   if(t.id==="interval"){act(async()=>{A=await post("/api/admin",{action:"interval",minutes:Number(t.value)});await load()});return}
   if(t.id==="file"&&t.files[0]){handleFile(t.files[0]);t.value="";return}
   if(t.dataset.link!==undefined&&ui.pending){

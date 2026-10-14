@@ -39,8 +39,8 @@ try {
   assert.equal(matched, 7); assert.equal(A.candidates[risk].length, 0); ok("권한 후보 매칭 7공고, 확인 필요 2공고");
 
   // 현업 계정: 승인 전 권한 없음
-  await post("admin", "/api/admin", { action: "link", code: "H", account: "kim.audit", password: "pass-1234" });
-  assert.equal((await post("kim", "/api/login", { id: "kim.audit", password: "pass-1234" })).status, 200);
+  await post("admin", "/api/admin", { action: "link", code: "H", account: "Kim.Audit@hanafn.com", password: "pass-1234" });
+  assert.equal((await post("kim", "/api/login", { id: "kim.audit@hanafn.com", password: "pass-1234" })).status, 200);
   assert.equal((await call("kim", "/api/board")).body.postings.length, 0); ok("승인 전에는 공고 0건");
   await post("admin", "/api/admin", { action: "grant", code: "H", id: audit });
   const kb = (await call("kim", "/api/board")).body;
@@ -71,5 +71,15 @@ try {
   assert.equal(r.body.status, "invalid"); ok("오래된 파일은 최신 데이터를 덮어쓰지 않음");
   const cfg = await call("pc", "/api/upload", { headers: { "x-sync-key": "test-sync-key-123" } });
   assert.equal(cfg.body.intervalM, 60); ok("PC 프로그램이 확인 주기(기본 1시간)를 받아 감");
+  // 완료 공고 표시 기간
+  const r1 = await post("admin", "/api/admin", { action: "link", code: "S", account: "not-an-email" });
+  assert.equal(r1.status, 400); ok("로그인 계정은 이메일 형식만 허용");
+  assert.equal((await post("admin", "/api/admin", { action: "doneDays", days: 30 })).status, 200);
+  const { expired } = await import("../lib/core.js");
+  const st = { meta: { doneDays: 30 } };
+  assert.equal(expired(st, { completedAt: new Date(Date.now() - 31 * 86400000).toISOString() }), true);
+  assert.equal(expired(st, { completedAt: new Date(Date.now() - 29 * 86400000).toISOString() }), false);
+  assert.equal(expired({ meta: { doneDays: 0 } }, { completedAt: "2000-01-01T00:00:00Z" }), false);
+  assert.equal(expired(st, {}), false); ok("완료 공고 표시 기간: 30일 지나면 숨김, 진행 중 공고는 영향 없음");
   console.log("\n모든 시나리오 통과");
 } finally { srv.kill(); }

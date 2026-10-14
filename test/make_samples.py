@@ -29,3 +29,13 @@ for i,row in enumerate(reversed(rows)):
 wb2.save(os.path.join(out,"sample_moved.xlsx"))
 ws2.cell(3,3,ws2.cell(3,3).value+" (수정)")
 wb2.save(os.path.join(out,"sample_renamed.xlsx"))
+# 대상자를 실명으로 적은 권한 시트 + 마지막 단계까지 끝난 공고 1건
+wb3=openpyxl.load_workbook(os.path.join(out,"sample_ok.xlsx"))
+q3=wb3["권한부여대상자"]
+names={"Y":"윤하나","D":"클로드","I":"이서진","H":"한도윤","S":"서민재","W":"우지아"}
+for row in q3.iter_rows(min_row=2,min_col=3,max_col=6):
+  for c in row:
+    if c.value in names: c.value=names[c.value]
+w3=wb3["채용현황"]
+for i in range(9): w3.cell(9,4+i,"완료")
+wb3.save(os.path.join(out,"sample_names.xlsx"))

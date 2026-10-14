@@ -5,7 +5,7 @@ import { loadState, codesOf } from "../lib/core.js";
 export default handler(async (req, res) => {
   if (req.method !== "POST") throw fail(405, "허용되지 않는 요청입니다.");
   const { id = "", password = "" } = await jsonBody(req);
-  const uid = String(id).trim();
+  const uid = String(id).trim().toLowerCase();
   await new Promise((r) => setTimeout(r, 300)); // 비밀번호 대입 속도 늦추기
   if (uid === "admin") {
     const want = process.env.ADMIN_PASSWORD || (process.env.VERCEL ? null : "admin");
