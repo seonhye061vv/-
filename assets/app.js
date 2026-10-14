@@ -32,7 +32,7 @@ async function load(){
     if(ui.tab==="preview"){
       const accs=pvAccounts();
       if(!accs.includes(ui.pvAs)) ui.pvAs=accs[0]||"";
-      ui.pv=ui.pvAs?await api("/api/board?as="+encodeURIComponent(ui.pvAs)):null;
+      ui.pv=ui.pvAs?await api("/api/board?name="+encodeURIComponent(ui.pvAs)):null;
     }
   }else{
     if(me.mustChange){B=null;return}
@@ -195,7 +195,7 @@ function renderBoard(D=B){
 
 async function openDetail(id){
   let p;
-  try{p=(await api("/api/board?id="+encodeURIComponent(id)+(isAdmin()&&ui.tab==="preview"&&ui.pvAs?"&as="+encodeURIComponent(ui.pvAs):""))).posting}catch(e){if($("#dlg").open)$("#dlg").close();ui.error=e.message;await refresh();return}
+  try{p=(await api("/api/board?id="+encodeURIComponent(id)+(isAdmin()&&ui.tab==="preview"&&ui.pvAs?"&name="+encodeURIComponent(ui.pvAs):""))).posting}catch(e){if($("#dlg").open)$("#dlg").close();ui.error=e.message;await refresh();return}
   $("#dlgBody").innerHTML=`
     <div class="dlg-h"><div style="display:flex;flex-direction:column;gap:4px;min-width:0"><span class="small muted">${esc(p.hq)} · ${esc(p.dept)}</span><h2>${esc(p.title)}</h2></div><button class="btn sm" id="dlgClose">닫기</button></div>
     <dl class="kv">
@@ -254,15 +254,17 @@ async function handleFile(file){
 }
 
 /* ---------- 관리자: 현업 화면 보기 ---------- */
-// 계정이 연결된 대상자만 고를 수 있다 (연결 안 된 사람은 로그인할 수 없으므로)
-const pvAccounts=()=>[...new Set(Object.values(A.links||{}))].sort();
+// 권한부여대상자 전체 (계정 연결 전이라도 승인된 공고 기준으로 미리 볼 수 있다)
+const pvAccounts=()=>Object.keys(A.codes||{}).sort((a,b)=>a.localeCompare(b,"ko"));
 function renderPreview(){
   const accs=pvAccounts();
-  if(!accs.length) return `<div class="empty">로그인 계정이 연결된 대상자가 없습니다. '열람 권한' 탭에서 대상자에게 이메일을 연결하면 그 사람의 화면을 여기서 볼 수 있습니다.</div>`;
-  const nameOf=a=>Object.keys(A.links).filter(c=>A.links[c]===a).join(", ");
+  if(!accs.length) return `<div class="empty">권한부여대상자가 없습니다. '열람 권한' 탭에서 명단을 올리면 여기서 대상자별 화면을 볼 수 있습니다.</div>`;
+  const n=(A.grants[ui.pvAs]||[]).length;
   return `<div class="panel">
     <div class="banner info" style="align-items:center"><span><b>현업 화면 미리보기</b> · 선택한 사람이 로그인했을 때 보는 화면 그대로입니다. 여기서는 보기만 할 수 있습니다.</span>
-      <select id="pvAs" aria-label="미리 볼 대상자" style="margin-left:auto">${accs.map(a=>`<option value="${esc(a)}" ${a===ui.pvAs?"selected":""}>${esc(nameOf(a))} (${esc(a)})</option>`).join("")}</select></div>
+      <select id="pvAs" aria-label="미리 볼 대상자" style="margin-left:auto">${accs.map(a=>`<option value="${esc(a)}" ${a===ui.pvAs?"selected":""}>${esc(a)} · ${A.links[a]?esc(A.links[a]):"계정 미연결"} · 승인 ${(A.grants[a]||[]).length}건</option>`).join("")}</select></div>
+    ${!A.links[ui.pvAs]?`<div class="banner ex"><span>${esc(ui.pvAs)} 님은 아직 로그인 이메일이 연결되지 않아 실제로는 로그인할 수 없습니다. 아래는 연결 후 보게 될 화면입니다.</span></div>`:""}
+    ${!n?`<div class="small muted">${esc(ui.pvAs)} 님에게 승인된 공고가 없어 빈 화면으로 보입니다. '열람 권한' 탭에서 공고별로 승인하면 여기에 나타납니다.</div>`:""}
     ${ui.pv?renderBoard(ui.pv):`<div class="empty">불러오는 중…</div>`}
   </div>`;
 }

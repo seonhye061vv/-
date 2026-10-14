@@ -14,11 +14,12 @@ export default handler(async (req, res) => {
   const q = new URL(req.url, "http://x").searchParams;
   const id = q.get("id");
   // HR 관리자: 특정 현업 계정이 보는 화면 그대로 미리보기
-  const as = (q.get("as") || "").trim().toLowerCase();
-  if (as) {
+  const as = (q.get("as") || "").trim().toLowerCase(), name = (q.get("name") || "").trim();
+  if (as || name) {
     if (u.role !== "admin") throw fail(403, "관리자만 사용할 수 있습니다.");
-    if (!Object.values(s.links).includes(as)) throw fail(404, "연결된 현업 계정이 아닙니다.");
-    u = { id: as, role: "viewer" };
+    if (as && !Object.values(s.links).includes(as)) throw fail(404, "연결된 현업 계정이 아닙니다.");
+    // 이름으로 볼 때는 계정 연결 전이라도 그 대상자에게 승인된 공고를 보여 준다
+    u = as ? { id: as, role: "viewer" } : { id: name, role: "viewer", codes: [name] };
   }
   if (id) {
     if (!visibleIds(s, u).includes(id)) throw fail(404, "공고를 찾을 수 없습니다.");

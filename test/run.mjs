@@ -59,6 +59,8 @@ try {
   const pv = (await call("admin", "/api/board?as=kim.audit@hanafn.com")).body;
   assert.equal(pv.postings.length, 1); assert.equal(pv.postings[0].id, audit); assert.equal(pv.meta.fileName, undefined);
   assert.equal((await call("admin", "/api/board?as=nobody@hanafn.com")).status, 404);
+  assert.equal((await call("admin", "/api/board?name=H")).body.postings.length, 1);
+  assert.equal((await call("admin", "/api/board?name=Y")).body.postings.length, 0);
   assert.equal((await call("kim", "/api/board?as=kim.audit@hanafn.com")).status, 403); ok("관리자는 현업 화면을 그대로 미리보기, 현업은 사용 불가");
   assert.equal((await call("kim", "/api/admin")).status, 403);
   assert.equal((await upload("kim", "sample_ok.xlsx")).status, 403); ok("열람자는 관리 기능·업로드 불가");
