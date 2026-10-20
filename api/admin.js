@@ -4,6 +4,8 @@ import { getSession, hashPassword, tempPassword } from "../lib/auth.js";
 import { loadState, saveState, loadPending, candidatesFor, allCands, normOrg, audit, INTERVALS, DONE_DAYS, expired, withLock } from "../lib/core.js";
 import { summarize } from "./upload.js";
 import ExcelJS from "exceljs";
+import { buildStats } from "../lib/stats.js";
+import { STAGES } from "../lib/parse.js";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -21,6 +23,7 @@ function view(s, pending) {
     audit: s.audit.slice(0, 100), syncLog: s.syncLog.slice(0, 100),
     pending: summarize(pending), intervals: INTERVALS, doneDaysOptions: DONE_DAYS,
     syncConfigured: Boolean(process.env.SYNC_KEY),
+    stats: buildStats(s),
   };
 }
 
@@ -30,6 +33,7 @@ export default handler(async (req, res) => {
   if (req.method !== "POST") throw fail(405, "허용되지 않는 요청입니다.");
   const b = await jsonBody(req);
   if (b.action === "tempXlsx") return tempXlsx(res, b.rows);
+  if (b.action === "statsXlsx") return statsXlsx(res, buildStats(await loadState()));
   let r = null;
   const s = await withLock(async () => { const s = await loadState(); r = change(s, b); await saveState(s); return s; });
   // 임시 비밀번호는 이 응답에서 한 번만 보여 준다 (서버에는 해시만 저장)
@@ -124,6 +128,18 @@ function change(s, b) {
       audit(s, "HR 관리자", b.id, code, b.action === "grant" ? "열람 권한 부여" : "열람 권한 회수");
       break;
     }
+    // 공고별 HR 메모 (현업 화면에도 보임, 빈 값이면 삭제)
+    case "memo": {
+      const p = s.postings[b.id];
+      if (!p) throw fail(400, "공고를 확인해 주세요.");
+      const text = String(b.text || "").trim();
+      if (text.length > 300) throw fail(400, "메모는 300자까지 쓸 수 있습니다.");
+      const before = p.memo?.text || "";
+      if (text === before) break;
+      if (text) p.memo = { text, at: new Date().toISOString() }; else delete p.memo;
+      audit(s, "HR 관리자", b.id, "-", text ? `메모 ${before ? "수정" : "작성"}: ${text.slice(0, 40)}` : "메모 삭제");
+      break;
+    }
     case "doneDays": {
       const d = Number(b.days);
       if (!DONE_DAYS.includes(d)) throw fail(400, "표시 기간을 목록에서 골라 주세요.");
@@ -149,6 +165,38 @@ async function tempXlsx(res, rows) {
   res.statusCode = 200;
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   res.setHeader("Content-Disposition", "attachment; filename=temp-passwords.xlsx");
+  res.setHeader("Cache-Control", "no-store");
+  res.end(Buffer.from(buf));
+}
+
+// 채용 통계를 보고용 엑셀로 (요약, 단계별 소요일, 부서별 현황, 월별 완료, 공고별 단계 일정)
+async function statsXlsx(res, st) {
+  const wb = new ExcelJS.Workbook();
+  const d = (x) => (x ? x.slice(0, 10) : "");
+  const sheet = (name, cols, rows) => {
+    const ws = wb.addWorksheet(name); ws.columns = cols; rows.forEach((r) => ws.addRow(r));
+    ws.getRow(1).font = { bold: true }; ws.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE3F5F3" } };
+    ws.views = [{ state: "frozen", ySplit: 1 }];
+  };
+  sheet("요약", [{ header: "항목", key: "k", width: 28 }, { header: "값", key: "v", width: 40 }], [
+    { k: "기준 시각", v: st.at.slice(0, 16).replace("T", " ") + " (UTC)" }, { k: "전체 공고", v: st.total }, { k: "진행 중", v: st.ongoing },
+    { k: "전체 단계 완료", v: st.done }, { k: "평균 진행률(%)", v: st.progress },
+    { k: "집계 시작(첫 등록)", v: d(st.since) }, { k: "참고", v: "소요일은 시스템 등록 이후 기록 기준입니다. 등록 전에 시작된 단계는 평균에서 뺍니다." }]);
+  sheet("단계별 소요일", [{ header: "#", key: "i", width: 5 }, { header: "단계", key: "name", width: 16 }, { header: "평균 소요일(완료 기준)", key: "avg", width: 22 }, { header: "집계 건수", key: "n", width: 11 }, { header: "지금 이 단계 공고", key: "nowN", width: 18 }, { header: "평균 경과일", key: "nowAvg", width: 13 }, { header: "최장 경과일", key: "nowMax", width: 13 }],
+    st.stages.map((x, i) => ({ i: i + 1, name: x.name, avg: x.avgDays ?? "-", n: x.n, nowN: x.nowN, nowAvg: x.nowAvg ?? "-", nowMax: x.nowMax ?? "-" })));
+  sheet("부서별 현황", [{ header: "본부", key: "hq", width: 18 }, { header: "부서", key: "dept", width: 20 }, { header: "전체", key: "total", width: 8 }, { header: "진행 중", key: "ongoing", width: 9 }, { header: "완료", key: "done", width: 8 }], st.orgs);
+  sheet("월별 완료", [{ header: "월", key: "month", width: 12 }, { header: "완료 공고 수", key: "n", width: 14 }], st.months);
+  const cols = [{ header: "본부", key: "hq", width: 16 }, { header: "부서", key: "dept", width: 18 }, { header: "공고명", key: "title", width: 34 }, { header: "처리 단계", key: "doneN", width: 10 }, { header: "완료일", key: "comp", width: 12 }];
+  STAGES.forEach((n, i) => cols.push({ header: `${i + 1}.${n}`, key: "s" + i, width: 22 }));
+  sheet("공고별 단계 일정", cols, st.rows.map((r) => {
+    const o = { hq: r.hq, dept: r.dept, title: r.title, doneN: `${r.doneN}/${STAGES.length}`, comp: d(r.completedAt) };
+    r.spans.forEach((sp, i) => { o["s" + i] = !sp ? (r.statuses[i] === "na" ? "해당없음" : r.statuses[i] === "done" ? "완료(등록 전)" : "") : `${sp.knownStart ? d(sp.start) : "등록 전"} ~ ${sp.end ? d(sp.end) : "진행 중"} (${sp.days}일)`; });
+    return o;
+  }));
+  const buf = await wb.xlsx.writeBuffer();
+  res.statusCode = 200;
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition", "attachment; filename=recruit-stats.xlsx");
   res.setHeader("Cache-Control", "no-store");
   res.end(Buffer.from(buf));
 }

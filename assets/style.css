@@ -152,6 +152,7 @@ td.org{white-space:nowrap;color:var(--muted)}
 dialog{border:0;border-radius:18px;padding:0;max-width:640px;width:calc(100% - 32px);background:var(--bg);color:var(--fg);box-shadow:0 12px 40px rgba(0,0,0,.25)}
 dialog::backdrop{background:rgba(10,25,20,.45)}
 .dlg{padding:18px 20px;display:flex;flex-direction:column;gap:14px;max-height:85vh;overflow:auto}
+.dlg>*{flex:none}
 .dlg-h{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
 .kv{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;font-size:13px}
 .kv dt{color:var(--muted)}
@@ -234,6 +235,36 @@ button.sb.sel .l{color:var(--accent);font-weight:700}
 .legend i.s-done{background:var(--done-bg);border-color:var(--done)}
 .legend i.s-ongoing{background:var(--accent);border-color:var(--accent)}
 .legend i.s-na{background:repeating-linear-gradient(45deg,var(--na-bg) 0 3px,transparent 3px 6px);border-color:var(--na)}
+/* HR 메모 */
+.memo{display:flex;gap:5px;align-items:flex-start;margin-top:4px;font-size:12px;color:var(--sun-fg);background:var(--sun-soft);border-radius:8px;padding:3px 8px;width:fit-content;max-width:100%;line-height:1.45;word-break:keep-all}
+.memo svg{width:12px;height:12px;flex:none;margin-top:2px;fill:none;stroke:currentColor;stroke-width:2}
+.memo-box{display:flex;flex-direction:column;gap:6px;background:var(--surface);border-radius:12px;padding:12px 14px}
+.memo-box textarea{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:8px 10px;font:inherit;resize:vertical}
+.memo-text{white-space:pre-wrap;margin:0}
+/* 채용 통계 */
+.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.tile{background:var(--accent-soft);border-radius:16px;padding:14px 16px;display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
+.tile .small:first-child{width:100%}
+.tile b{font-size:32px;color:var(--accent);font-variant-numeric:tabular-nums;line-height:1.1}
+@media (max-width:760px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.hbars{display:flex;flex-direction:column;gap:7px}
+.hb{display:grid;grid-template-columns:118px minmax(0,1fr) 56px;gap:10px;align-items:center;font-size:13px}
+.hb-l{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hb-l .i{font-family:var(--f-mono);font-size:10.5px;color:var(--muted);margin-right:6px}
+.hb-t{height:14px;background:var(--surface);border-radius:4px;overflow:hidden}
+.hb-f{display:block;height:100%;background:var(--accent);border-radius:4px}
+.hb-v{text-align:right;font-variant-numeric:tabular-nums;color:var(--fg)}
+.hb:hover .hb-f{background:var(--frame-2)}
+#view.enter .hb-f{transform-origin:left;animation:growX .6s cubic-bezier(.34,1.2,.64,1) both;animation-delay:calc(.15s + var(--i,0) * .05s)}
+@keyframes growX{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+.vbars{display:flex;align-items:flex-end;gap:10px;height:170px;padding-top:6px;background:repeating-linear-gradient(to top,var(--line) 0 1px,transparent 1px 34px)}
+.vb{flex:1;max-width:60px;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%}
+.vb-c{flex:1;width:100%;display:flex;align-items:flex-end;justify-content:center}
+.vb-f{width:min(28px,70%);background:var(--accent);border-radius:4px 4px 0 0}
+.vb-v{font-weight:700;font-size:13px;font-variant-numeric:tabular-nums}
+.vb-l{font-size:11.5px;color:var(--muted)}
+#view.enter .vb-f{transform-origin:bottom;animation:grow .6s cubic-bezier(.34,1.2,.64,1) both;animation-delay:calc(.15s + var(--i,0) * .06s)}
+th.num,td.num{text-align:right;font-variant-numeric:tabular-nums}
 /* 대상자 직접 추가 */
 .add-person{display:flex;flex-direction:column;gap:8px;background:var(--surface);border-radius:14px;padding:12px 14px}
 .add-grid{display:flex;flex-wrap:wrap;gap:8px}

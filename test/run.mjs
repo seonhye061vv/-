@@ -124,6 +124,22 @@ try {
   const rp = (await post("admin", "/api/admin", { action: "removePerson", name: "추가자 과장" })).body;
   assert.ok(!rp.codes["추가자 과장"] && !rp.links["추가자 과장"]);
   assert.equal((await post("admin", "/api/admin", { action: "removePerson", name: Object.keys(rp.suggest)[0] })).status, 400); ok("직접 추가한 대상자만 삭제, 연결도 함께 정리");
+  // 공고 메모: 관리자 작성 → 현업에게 보임, 현업은 수정 불가
+  const mcode = Object.keys(ga.grants).find((c) => (ga.grants[c] || []).length), mid = ga.grants[mcode][0];
+  assert.equal((await post("admin", "/api/admin", { action: "memo", id: mid, text: "x".repeat(301) })).status, 400);
+  const mm = (await post("admin", "/api/admin", { action: "memo", id: mid, text: " 면접 10/20 예정 " })).body;
+  assert.equal(mm.postings[mid].memo.text, "면접 10/20 예정");
+  assert.equal((await post("kim", "/api/admin", { action: "memo", id: mid, text: "hack" })).status, 403);
+  const pvm = (await call("admin", "/api/board?name=" + encodeURIComponent(mcode))).body;
+  assert.equal(pvm.postings.find((p) => p.id === mid).memo.text, "면접 10/20 예정");
+  assert.equal((await post("admin", "/api/admin", { action: "memo", id: mid, text: "" })).body.postings[mid].memo, undefined); ok("공고 메모: 관리자 작성·삭제, 현업 화면에 표시, 현업은 수정 불가");
+  // 채용 통계
+  const sa = (await call("admin", "/api/admin")).body.stats;
+  assert.equal(sa.total, 9); assert.equal(sa.stages.length, 9); assert.equal(sa.ongoing + sa.done, 9);
+  assert.equal(sa.orgs.reduce((n, o) => n + o.total, 0), 9);
+  const sx = await call("admin", "/api/admin", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "statsXlsx" }) });
+  assert.equal(sx.status, 200);
+  assert.equal((await post("kim", "/api/admin", { action: "statsXlsx" })).status, 403); ok("채용 통계: 요약·단계별·부서별 집계와 보고용 엑셀, 현업은 사용 불가");
   // 완료 공고 표시 기간
   const r1 = await post("admin", "/api/admin", { action: "link", code: "S", account: "not-an-email" });
   assert.equal(r1.status, 400); ok("로그인 계정은 이메일 형식만 허용");

@@ -66,6 +66,7 @@ function curPills(p){
 const doneN=p=>p.statuses.filter(s=>s==="done"||s==="na").length;
 const progress=p=>`<span class="prog small"><b>${doneN(p)}</b>/${STAGES.length}단계 처리</span>`;
 const track=p=>`<div class="trk" role="img" aria-label="${esc(STAGES.map((s,i)=>`${i+1} ${s} ${LABEL[p.statuses[i]]||"아직"}`).join(", "))}">${p.statuses.map((st,i)=>`<span class="s-${st}" data-tip="${i+1}. ${STAGES[i]} · ${LABEL[st]||"아직"}"></span>`).join("")}</div>`;
+const memoLine=p=>p.memo?`<span class="memo" title="HR 메모 · ${esc(fmt(p.memo.at))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v12H8l-4 4z"/></svg>${esc(p.memo.text)}</span>`:"";
 const stCell=k=>k==="empty"?"":`<span class="pill ${k}">${LABEL[k]}</span>`;
 
 /* ---------- 공통 ---------- */
@@ -104,8 +105,8 @@ function renderBanners(){
   $("#banners").innerHTML=b.join("");
 }
 // 사이드바 메뉴 아이콘 (선 아이콘)
-const ICON={board:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',upload:'<path d="M12 16V4M7 9l5-5 5 5M4 20h16"/>',perm:'<circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-6 7-6s7 2 7 6M17 11l2 2 4-4"/>',sync:'<path d="M20 12a8 8 0 0 1-14 5M4 12a8 8 0 0 1 14-5M18 3v4h-4M6 21v-4h4"/>',log:'<path d="M8 6h13M8 12h13M8 18h13M3 6h1M3 12h1M3 18h1"/>',preview:'<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'};
-const TABS=[["board","현황판"],["upload","엑셀 반영"],["perm","열람 권한"],["sync","PC 자동 동기화"],["log","반영 기록"],["preview","현업 화면 보기"]];
+const ICON={board:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',upload:'<path d="M12 16V4M7 9l5-5 5 5M4 20h16"/>',perm:'<circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-6 7-6s7 2 7 6M17 11l2 2 4-4"/>',sync:'<path d="M20 12a8 8 0 0 1-14 5M4 12a8 8 0 0 1 14-5M18 3v4h-4M6 21v-4h4"/>',log:'<path d="M8 6h13M8 12h13M8 18h13M3 6h1M3 12h1M3 18h1"/>',preview:'<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',stats:'<path d="M3 3v18h18M7 15l4-4 3 3 6-6"/>'};
+const TABS=[["board","현황판"],["upload","엑셀 반영"],["perm","열람 권한"],["sync","PC 자동 동기화"],["log","반영 기록"],["stats","채용 통계"],["preview","현업 화면 보기"]];
 function renderTabs(){
   if(!isAdmin()) ui.tab="board";
   const t=isAdmin()?TABS:TABS.slice(0,1);
@@ -193,14 +194,16 @@ function renderBoard(D=B){
   <div class="tbl-main">
     <div class="tbl-wrap"><table>
       <thead><tr><th>본부</th><th>부서</th><th>공고명</th><th>현재 단계</th><th class="prog-h">진행 상황 <span class="small muted">(1~9단계, 마우스를 올리면 단계 이름)</span></th></tr></thead>
-      <tbody>${list.map(p=>`<tr class="row" data-id="${p.id}" tabindex="0"><td class="org">${esc(p.hq)}</td><td class="org">${esc(p.dept)}</td><td class="title">${esc(p.title)}${isAdmin()&&p.inLastFile===false?'<span class="tag">최근 파일에 없음</span>':""}${isAdmin()&&p.expired?'<span class="tag">표시 기간 지남</span>':""}</td><td>${curPills(p)}</td><td class="prog-c">${track(p)}${progress(p)}</td></tr>`).join("")}</tbody>
+      <tbody>${list.map(p=>`<tr class="row" data-id="${p.id}" tabindex="0"><td class="org">${esc(p.hq)}</td><td class="org">${esc(p.dept)}</td><td class="title">${esc(p.title)}${memoLine(p)}${isAdmin()&&p.inLastFile===false?'<span class="tag">최근 파일에 없음</span>':""}${isAdmin()&&p.expired?'<span class="tag">표시 기간 지남</span>':""}</td><td>${curPills(p)}</td><td class="prog-c">${track(p)}${progress(p)}</td></tr>`).join("")}</tbody>
     </table></div>
   </div>
-  <div class="cards">${list.map(p=>`<button class="card" data-id="${p.id}"><span class="small muted">${esc(p.hq)} · ${esc(p.dept)}</span><span class="t">${esc(p.title)}</span><span>${curPills(p)}</span>${track(p)}${progress(p)}</button>`).join("")}</div>
+  <div class="cards">${list.map(p=>`<button class="card" data-id="${p.id}"><span class="small muted">${esc(p.hq)} · ${esc(p.dept)}</span><span class="t">${esc(p.title)}</span>${memoLine(p)}<span>${curPills(p)}</span>${track(p)}${progress(p)}</button>`).join("")}</div>
   <p class="note legend"><span><i class="s-done"></i>완료</span><span><i class="s-ongoing"></i>진행 중</span><span><i class="s-na"></i>해당사항 없음</span><span><i class="s-empty"></i>아직 도달 전</span> · 공고를 누르면 단계별 상세가 나와요.</p>`
   :`<div class="empty">조건에 맞는 공고가 없습니다.</div>`}`;
 }
 
+// 저장 후 상세 창을 새 내용으로 다시 그린다
+function openDetailAfter(id){const w=setInterval(()=>{if(!ui.busy){clearInterval(w);if($("#dlg").open)openDetail(id)}},100)}
 async function openDetail(id){
   let p;
   try{p=(await api("/api/board?id="+encodeURIComponent(id)+(isAdmin()&&ui.tab==="preview"&&ui.pvAs?"&name="+encodeURIComponent(ui.pvAs):""))).posting}catch(e){if($("#dlg").open)$("#dlg").close();ui.error=e.message;await refresh();return}
@@ -212,6 +215,11 @@ async function openDetail(id){
       <dt>마지막 반영</dt><dd>${fmt((ui.tab==="preview"&&ui.pv?ui.pv:B).meta.lastSuccess)}</dd>
       ${adminView()?`<dt>내부 ID</dt><dd class="mono">${p.id}</dd><dt>최근 파일</dt><dd>${p.inLastFile!==false?"포함":"<span class='tag' style='margin:0'>최근 파일에 없음 · 자동 삭제하지 않음</span>"}</dd>`:""}
     </dl>
+    <div class="memo-box"><h3>HR 메모</h3>
+      ${adminView()?`<textarea id="memoText" maxlength="300" rows="3" placeholder="예: 면접 10/20(월) 예정, 처우협의 이번 주 마무리">${esc(p.memo?p.memo.text:"")}</textarea>
+      <div class="row-flex"><button class="btn sm primary" data-memo-save="${p.id}">메모 저장</button>${p.memo?`<button class="btn sm" data-memo-del="${p.id}">메모 삭제</button>`:""}<span class="small muted">현업 화면에도 그대로 보여요. 300자까지.${p.memo?` 마지막 수정 ${esc(fmt(p.memo.at))}`:""}</span></div>`
+      :p.memo?`<p class="memo-text">${esc(p.memo.text)}</p><span class="small muted">${esc(fmt(p.memo.at))}</span>`:`<p class="small muted">남겨진 메모가 없습니다.</p>`}
+    </div>
     <div class="tbl-wrap"><table class="steps"><thead><tr><th>#</th><th>단계</th><th>상태</th></tr></thead>
     <tbody>${STAGES.map((s,i)=>`<tr class="${p.statuses[i]==="ongoing"?"on":""}"><td class="mono">${i+1}</td><td>${s}</td><td>${stCell(p.statuses[i])}</td></tr>`).join("")}</tbody></table></div>
     <p class="note" style="margin:0">※ 공란은 아직 해당 단계에 도달하지 않은 상태를 의미합니다.</p>
@@ -345,6 +353,54 @@ function renderPerm(){
     </div></div></div>`;
 }
 
+/* ---------- 관리자: 채용 통계 ---------- */
+function renderStats(){
+  const S=A.stats; if(!S||!S.total) return `<div class="empty">공고가 없어 통계를 낼 수 없습니다. 엑셀 반영 탭에서 파일을 올려 주세요.</div>`;
+  const maxAvg=Math.max(1,...S.stages.map(x=>x.avgDays||0));
+  const maxM=Math.max(1,...S.months.map(x=>x.n));
+  // 지금 단계에 오래 머문 공고
+  const stuck=S.rows.flatMap(r=>r.spans.map((sp,i)=>sp&&!sp.end&&r.statuses[i]==="ongoing"?{r,i,days:sp.days,known:sp.knownStart}:null).filter(Boolean)).sort((a,b)=>b.days-a.days).slice(0,5);
+  return `<div class="panel stats">
+    <div class="row-flex" style="justify-content:space-between"><span class="small muted">집계 기준: ${S.since?esc(S.since.slice(0,10))+" 첫 등록 이후 ":""}엑셀 반영 기록 · 소요일은 단계가 '진행 중'이 된 날부터 '완료'가 된 날까지</span><button class="btn sm primary" id="dlStats">보고용 엑셀 내려받기</button></div>
+    <section class="tiles">
+      <div class="tile"><span class="small muted">전체 공고</span><b>${S.total}</b><span class="small muted">건</span></div>
+      <div class="tile"><span class="small muted">진행 중</span><b>${S.ongoing}</b><span class="small muted">건</span></div>
+      <div class="tile"><span class="small muted">전체 단계 완료</span><b>${S.done}</b><span class="small muted">건</span></div>
+      <div class="tile"><span class="small muted">평균 진행률</span><b>${S.progress}</b><span class="small muted">%</span></div>
+    </section>
+    <div class="grid2">
+      <div class="box"><h2>단계별 평균 소요일</h2>
+        <p class="small muted">완료된 단계 기준 평균입니다. 시스템 등록 전에 시작된 단계는 시작일을 몰라 빼고 계산해요.</p>
+        <div class="hbars">${S.stages.map((x,i)=>`<div class="hb" title="${esc(x.name)} · ${x.avgDays==null?"아직 완료 기록 없음":`평균 ${x.avgDays}일 (${x.n}건 기준)`}"><span class="hb-l"><span class="i">${i+1}</span>${esc(x.name)}</span><span class="hb-t"><span class="hb-f" style="width:${x.avgDays==null?0:Math.max(x.avgDays/maxAvg*100,2)}%;--i:${i}"></span></span><span class="hb-v">${x.avgDays==null?`<span class="muted">-</span>`:`<b>${x.avgDays}</b>일`}</span></div>`).join("")}</div>
+      </div>
+      <div class="box"><h2>지금 단계에 머문 기간</h2>
+        <p class="small muted">현재 진행 중인 단계에 들어간 뒤 지난 날짜예요. '등록 전'은 시스템 등록 전에 시작돼 실제로는 더 길 수 있어요.</p>
+        ${stuck.length?`<div class="tbl-wrap"><table><thead><tr><th>공고</th><th>단계</th><th>경과</th></tr></thead><tbody>${stuck.map(x=>`<tr class="row" data-id="${x.r.id}" tabindex="0"><td><b>${esc(x.r.title)}</b><br><span class="small muted">${esc(x.r.hq)} · ${esc(x.r.dept)}</span></td><td><span class="pill ongoing">${esc(STAGES[x.i])}</span></td><td style="white-space:nowrap"><b>${x.days}</b>일${x.known?"":` <span class="tag">등록 전</span>`}</td></tr>`).join("")}</tbody></table></div>`:`<p class="small muted">진행 중인 단계가 없습니다.</p>`}
+        <div class="small muted">${S.stages.filter(x=>x.nowN).map(x=>`${esc(x.name)} ${x.nowN}건(평균 ${x.nowAvg}일)`).join(" · ")}</div>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="box"><h2>부서별 공고 현황</h2>
+        <div class="tbl-wrap"><table><thead><tr><th>본부</th><th>부서</th><th class="num">전체</th><th class="num">진행 중</th><th class="num">완료</th></tr></thead><tbody>
+        ${S.orgs.map(o=>`<tr><td class="org">${esc(o.hq)}</td><td>${esc(o.dept)}</td><td class="num"><b>${o.total}</b></td><td class="num">${o.ongoing}</td><td class="num">${o.done}</td></tr>`).join("")}</tbody></table></div>
+      </div>
+      <div class="box"><h2>월별 완료 공고</h2>
+        ${S.months.length?`<div class="vbars">${S.months.map((m,i)=>`<div class="vb" title="${esc(m.month)} 완료 ${m.n}건"><span class="vb-v">${m.n}</span><span class="vb-c"><span class="vb-f" style="height:${m.n/maxM*100}%;--i:${i}"></span></span><span class="vb-l">${esc(m.month.slice(2).replace("-","."))}</span></div>`).join("")}</div>`
+        :`<p class="small muted">아직 모든 단계를 마친 공고가 없습니다. 공고가 완료되면 완료한 달에 쌓여요.</p>`}
+      </div>
+    </div>
+  </div>`;
+}
+async function downloadStats(){
+  try{
+    const r=await fetch("/api/admin",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"statsXlsx"})});
+    if(!r.ok){let m="파일을 만들지 못했습니다.";try{m=(await r.json()).error||m}catch(e){}throw new Error(m)}
+    const url=URL.createObjectURL(await r.blob());const a=document.createElement("a");const d=new Date();
+    a.href=url;a.download=`recruit-stats_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}.xlsx`;
+    document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }catch(e){ui.error=e.message;render()}
+}
+
 /* ---------- 관리자: PC 자동 동기화 ---------- */
 function renderSync(){
   const m=A.meta;
@@ -402,7 +458,7 @@ function draw(){
   if(!isAdmin()&&(me.mustChange||ui.pwForm)){$("#fresh").innerHTML="";$("#tabs").innerHTML="";v.innerHTML=renderPwChange();return}
   renderFresh();renderTabs();
   if(!B){v.innerHTML=`<div class="empty">불러오는 중…</div>`;return}
-  v.innerHTML=!isAdmin()||ui.tab==="board"?renderBoard():ui.tab==="upload"?renderUpload():ui.tab==="perm"?renderPerm():ui.tab==="preview"?renderPreview():ui.tab==="sync"?renderSync():renderLog();
+  v.innerHTML=!isAdmin()||ui.tab==="board"?renderBoard():ui.tab==="upload"?renderUpload():ui.tab==="perm"?renderPerm():ui.tab==="preview"?renderPreview():ui.tab==="sync"?renderSync():ui.tab==="stats"?renderStats():renderLog();
   // 권한이 회수된 공고의 상세 화면은 바로 닫는다
   const shown=ui.tab==="preview"&&ui.pv?ui.pv:B;
   if($("#dlg").open&&!shown.postings.some(p=>p.id===$("#dlg").dataset.id)) $("#dlg").close();
@@ -436,6 +492,10 @@ document.addEventListener("click",e=>{
     if(!one&&!confirm("본부·부서가 맞는 후보를 모든 공고에 승인할까요? 승인한 뒤에도 공고별로 회수할 수 있어요."))return;
     act(async()=>{const r=await post("/api/admin",{action:"grantAll",id:one||undefined});ui.bulkSkip=null;ui.bulkMsg=`${r.bulk.granted}건을 승인했어요.`;await load()});return}
   if(t.id==="dlTemp"){downloadTemps();return}
+  if(t.id==="dlStats"){downloadStats();return}
+  if(t.dataset.memoSave||t.dataset.memoDel){const id=t.dataset.memoSave||t.dataset.memoDel;const text=t.dataset.memoDel?"":$("#memoText").value;
+    if(t.dataset.memoDel&&!confirm("이 공고의 메모를 지울까요?"))return;
+    act(async()=>{await post("/api/admin",{action:"memo",id,text});await load();ui.notice=text?"메모를 저장했어요. 현업 화면에도 보여요.":"메모를 지웠어요."});openDetailAfter(id);return}
   if(t.dataset.delI!==undefined){const c=people()[+t.dataset.delI];
     if(!confirm(`직접 추가한 ${c} 님을 삭제할까요? 명단 파일에 없는 사람이면 계정 연결과 공고 승인도 함께 지워집니다.`))return;
     act(async()=>{await post("/api/admin",{action:"removePerson",name:c});await load();ui.notice=`${c} 님을 삭제했습니다.`});return}
